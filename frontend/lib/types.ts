@@ -99,7 +99,7 @@ export interface Letter {
   sent: boolean;
 }
 
-export type ProviderType = "club" | "speech_therapist" | "defectologist" | "center";
+export type ProviderType = "center" | "speech_therapist" | "defectologist" | "psychologist" | "club" | "sport" | "parents";
 
 export interface Provider {
   id: number;

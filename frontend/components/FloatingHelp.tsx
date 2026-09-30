@@ -161,18 +161,6 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
             </button>
           </div>
 
-          <div className="urgent-sos">
-            <p>{opts?.top_text ?? "Если ребёнок или кто-то рядом в опасности, звоните 112. Скорая помощь: 103."}</p>
-            <div className="urgent-phones">
-              {phones.map((p) => (
-                <a key={p.number} className="urgent-phone" href={`tel:${p.number}`}>
-                  <b className="no-translate">{p.number}</b>
-                  <span>{p.label}</span>
-                </a>
-              ))}
-            </div>
-          </div>
-
           <div className="segmented" style={{ display: "flex" }} role="tablist">
             <button role="tab" aria-selected={tab === "urgent"} className={tab === "urgent" ? "active" : ""} style={{ flex: 1 }}
               onClick={() => setTab("urgent")}>
@@ -183,6 +171,20 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
               Вопросы
             </button>
           </div>
+
+          {tab === "urgent" && (
+            <div className="urgent-sos">
+              <p>{opts?.top_text ?? "Если ребёнок или кто-то рядом в опасности, звоните 112. Скорая помощь: 103."}</p>
+              <div className="urgent-phones">
+                {phones.map((p) => (
+                  <a key={p.number} className="urgent-phone" href={`tel:${p.number}`}>
+                    <b className="no-translate">{p.number}</b>
+                    <span>{p.label}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {tab === "faq" ? (
             <FaqTab caseId={caseId} onNavigate={close} onAskLuna={(q) => {
