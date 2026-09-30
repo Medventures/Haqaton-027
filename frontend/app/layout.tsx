@@ -16,7 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Header />
           <main className="container">{children}</main>
           <footer className="footer container">
-            Демо-версия. Все данные синтетические. Система не ставит диагнозы и не даёт медицинских рекомендаций.
+            Все данные синтетические. Система не ставит диагнозы и не даёт медицинских рекомендаций.
           </footer>
         </AppProvider>
       </body>
