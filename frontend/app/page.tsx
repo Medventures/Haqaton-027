@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { Ico, type IconName } from "@/components/Icons";
 import { useApp } from "@/lib/app-context";
 import type { Role } from "@/lib/types";
@@ -94,13 +95,43 @@ export default function Home() {
   const { setRole, lang, setLang } = useApp();
   const router = useRouter();
 
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Scroll-in animation: sections fade up once they enter the viewport. Without JS everything stays visible.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    root.classList.add("motion-ready");
+    const items = root.querySelectorAll<HTMLElement>(".reveal");
+    if (!("IntersectionObserver" in window)) {
+      items.forEach((el) => el.classList.add("in"));
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => {
+        if (e.isIntersecting) {
+          e.target.classList.add("in");
+          io.unobserve(e.target);
+        }
+      }),
+      { threshold: 0.15, rootMargin: "0px 0px -40px 0px" },
+    );
+    items.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
   function go(r: Role, path: string) {
     setRole(r);
     router.push(path);
   }
 
   return (
-    <div className="lp">
+    <div className="lp" ref={rootRef}>
+      <div className="lp-bg" aria-hidden>
+        <span className="blob b1" />
+        <span className="blob b2" />
+        <span className="blob b3" />
+      </div>
       <header className="lp-nav">
         <nav className="lp-nav-links" aria-label="Разделы страницы">
           <a href="#how">Как это работает</a>
@@ -125,14 +156,16 @@ export default function Home() {
 
       <section className="lp-hero">
         <span className="lp-pill">
-          <span className="lp-pill-dot" /> Здравоохранение · образование · соцзащита
+          <span className="lp-pill-dot" /> Для семей и кураторов
         </span>
         <h1>
           Единый маршрут
           <br />
           ребёнка с <span className="lp-accent">РАС</span>
         </h1>
-        <p className="lp-lead">Документы из госсистем, несколько вопросов — и понятный план с напоминаниями.</p>
+        <p className="lp-lead">
+          <b>AqylRoute AI</b> — единый цифровой маршрут ребёнка с РАС через здравоохранение, образование и соцзащиту
+        </p>
         <div className="lp-actions">
           <button className="lp-btn lp-btn-primary" onClick={() => go("parent", "/parent/login")}>
             Войти через eGov <Ico name="arrow" size={18} />
@@ -155,7 +188,7 @@ export default function Home() {
         {lang === "kk" && <span className="hint">Аударма автоматты түрде жасалған, тексерілуде.</span>}
       </section>
 
-      <section className="lp-stage" aria-label="Как выглядит план">
+      <section className="lp-stage reveal" aria-label="Как выглядит план">
         <div className="lp-stage-side left">
           <b>3 ведомства</b>
           <span>в одном плане: здравоохранение, образование, соцзащита</span>
@@ -171,12 +204,12 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="lp-section" id="how">
+      <section className="lp-section reveal" id="how">
         <span className="lp-kicker">Как это работает</span>
         <h2>Три шага до плана</h2>
         <div className="lp-steps">
           {STEPS.map((s, i) => (
-            <div key={s.title} className="lp-step">
+            <div key={s.title} className="lp-step" style={{ transitionDelay: `${i * 90}ms` }}>
               <span className="lp-step-ico">
                 <Ico name={s.icon} size={22} />
               </span>
@@ -188,7 +221,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="lp-section" id="for">
+      <section className="lp-section reveal" id="for">
         <span className="lp-kicker">Для кого</span>
         <h2>Семье — ясность, куратору — контроль сроков</h2>
         <div className="lp-for">
