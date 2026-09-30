@@ -3,30 +3,100 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { StageBadge } from "@/components/Badges";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { answerText } from "@/lib/format";
-import type { CaseView, InterviewState, NextResponse, Question } from "@/lib/types";
+import type { CaseView, InterviewItem, NextResponse, Progress, Summary, SummaryLine } from "@/lib/types";
 
-type Phase = "loading" | "question" | "generating" | "finished" | "error";
+type Phase = "loading" | "question" | "summary" | "generating" | "finished" | "error";
+
+function SummaryEditor({ summary, onConfirm, busy }: { summary: Summary; onConfirm: (c: Record<string, string | string[]>) => void; busy: boolean }) {
+  const [edits, setEdits] = useState<Record<string, string | string[]>>({});
+  const [editing, setEditing] = useState<string | null>(null);
+
+  function renderEditor(line: SummaryLine) {
+    const cur = edits[line.slot] ?? line.raw;
+    if (line.type === "choice")
+      return (
+        <div className="chips">
+          {line.options.map((o) => (
+            <button key={o} className={`chip ${cur === o ? "on" : ""}`} onClick={() => setEdits({ ...edits, [line.slot]: o })}>
+              {o}
+            </button>
+          ))}
+        </div>
+      );
+    if (line.type === "multi") {
+      const arr = Array.isArray(cur) ? cur : [cur];
+      return (
+        <div className="chips">
+          {line.options.map((o) => {
+            const on = arr.includes(o);
+            return (
+              <button key={o} className={`chip ${on ? "on" : ""}`}
+                onClick={() => setEdits({ ...edits, [line.slot]: on ? arr.filter((x) => x !== o) : [...arr, o] })}>
+                {on ? "✓ " : "+ "}
+                {o}
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+    return (
+      <textarea className="input" rows={2} value={String(cur)} onChange={(e) => setEdits({ ...edits, [line.slot]: e.target.value })} />
+    );
+  }
+
+  return (
+    <div className="summary-card">
+      <p className="small">Проверьте, правильно ли я понял. Если что-то не так — нажмите «Поправить».</p>
+      <dl className="summary-list">
+        {summary.lines.map((line) => (
+          <div key={line.slot} className="summary-row">
+            <dt>{line.label}</dt>
+            <dd>
+              {editing === line.slot ? renderEditor(line) : answerText(edits[line.slot] ?? line.value)}
+              {edits[line.slot] !== undefined && editing !== line.slot && <span className="pill pill-muted pill-xs">исправлено</span>}
+            </dd>
+            <button className="link-btn small" onClick={() => setEditing(editing === line.slot ? null : line.slot)}>
+              {editing === line.slot ? "Готово" : "Поправить"}
+            </button>
+          </div>
+        ))}
+      </dl>
+      {summary.red_flags.length > 0 && (
+        <div className="alert alert-error small">Рекомендуем как можно скорее обратиться к врачу. Куратор получит уведомление.</div>
+      )}
+      <button className="btn btn-primary" disabled={busy} onClick={() => onConfirm(edits)}>
+        {busy ? "Сохраняем…" : "Да, всё верно"}
+      </button>
+    </div>
+  );
+}
 
 export default function InterviewPage() {
   const { id } = useParams<{ id: string }>();
   const { settings, ready, rememberCase, role, setRole } = useApp();
+  const [caseInfo, setCaseInfo] = useState<CaseView | null>(null);
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [item, setItem] = useState<InterviewItem | null>(null);
+  const [items, setItems] = useState<InterviewItem[]>([]);
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [single, setSingle] = useState<string | null>(null);
+  const [multi, setMulti] = useState<string[]>([]);
+  const [custom, setCustom] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const summaryRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (ready && role !== "parent") setRole("parent");
   }, [ready, role, setRole]);
-  const [caseInfo, setCaseInfo] = useState<CaseView | null>(null);
-  const [phase, setPhase] = useState<Phase>("loading");
-  const [question, setQuestion] = useState<Question | null>(null);
-  const [state, setState] = useState<InterviewState | null>(null);
-  const [single, setSingle] = useState<string | null>(null);
-  const [multi, setMulti] = useState<string[]>([]);
-  const [custom, setCustom] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
 
   const finish = useCallback(
     async (status: string) => {
@@ -44,16 +114,22 @@ export default function InterviewPage() {
 
   const handle = useCallback(
     async (r: NextResponse, status: string) => {
-      setState(r.interview);
+      setItems(r.interview.items);
+      setProgress(r.progress);
       if (r.done) {
-        setQuestion(null);
+        setItem(null);
         await finish(status);
-      } else if (r.item) {
-        setQuestion(r.item);
+        return;
+      }
+      if (r.item) {
+        setItem(r.item);
         setSingle(null);
         setMulti([]);
         setCustom("");
-        setPhase("question");
+        if (r.item.type === "confirm" && r.summary) {
+          setSummary(r.summary);
+          setPhase("summary");
+        } else setPhase("question");
       }
     },
     [finish],
@@ -66,6 +142,10 @@ export default function InterviewPage() {
       try {
         const c = await api<CaseView>("parent", `/cases/${id}`);
         setCaseInfo(c);
+        if (c.summary_confirmed) {
+          await finish(c.status);
+          return;
+        }
         const r = await api<NextResponse>("parent", `/cases/${id}/interview/next`, { method: "POST", body: {} });
         await handle(r, c.status);
       } catch (e) {
@@ -73,27 +153,32 @@ export default function InterviewPage() {
         setPhase("error");
       }
     })();
-  }, [id, ready, handle, rememberCase]);
+  }, [id, ready, handle, finish, rememberCase]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [question, phase, state?.items.length]);
+    // Прокручиваем только ленту чата: к началу сводки или к последнему сообщению.
+    const chat = chatRef.current;
+    if (!chat) return;
+    const target = phase === "summary" ? summaryRef.current : bottomRef.current;
+    if (target) chat.scrollTop = target.offsetTop - (phase === "summary" ? 8 : chat.clientHeight - 40);
+    else chat.scrollTop = chat.scrollHeight;
+  }, [item, phase, items.length]);
 
   function buildAnswer(): string | string[] | null {
-    if (!question) return null;
+    if (!item) return null;
     const extra = custom.trim();
-    if (question.type === "text") return extra || null;
-    if (question.type === "multi") {
+    if (item.type === "text") return extra || null;
+    if (item.type === "multi") {
       const vals = [...multi, ...(extra ? [extra] : [])];
       return vals.length ? vals : null;
     }
     return extra || single;
   }
 
-  async function submit(override?: string) {
-    const answer = override ?? buildAnswer();
+  async function submit() {
+    const answer = buildAnswer();
     if (answer === null) return;
-    setSubmitting(true);
+    setBusy(true);
     setError(null);
     try {
       const r = await api<NextResponse>("parent", `/cases/${id}/interview/next`, { method: "POST", body: { answer } });
@@ -101,36 +186,51 @@ export default function InterviewPage() {
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setSubmitting(false);
+      setBusy(false);
     }
   }
 
   async function autofill() {
-    setSubmitting(true);
+    setBusy(true);
     try {
       const r = await api<NextResponse>("parent", `/cases/${id}/interview/autofill`, { method: "POST" });
       await handle(r, caseInfo?.status ?? "draft");
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setSubmitting(false);
+      setBusy(false);
     }
   }
 
-  const max = state?.max_questions ?? 12;
-  const min = state?.min_questions ?? 8;
-  const answered = state?.items.filter((i) => i.answer !== null) ?? [];
-  const current = question ? question.n : answered.length;
-  const topics = settings?.topics ?? [];
+  async function confirmSummary(corrections: Record<string, string | string[]>) {
+    setBusy(true);
+    try {
+      await api("parent", `/cases/${id}/interview/confirm`, {
+        method: "POST",
+        body: { corrections: Object.keys(corrections).length ? corrections : null },
+      });
+      await finish(caseInfo?.status ?? "draft");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const answered = items.filter((i) => i.answer !== null && i.qid !== "12");
+  const total = progress?.expected_total ?? 12;
+  const current = item ? item.n : answered.length;
 
   return (
-    <div className="interview-layout">
+    <div className="interview-layout single">
       <div className="stack">
         <div>
           <Link href="/parent" className="muted small">
             ← Кабинет родителя
           </Link>
-          <h1 className="h-page">Интервью {caseInfo ? `· ${caseInfo.child_alias}` : ""}</h1>
+          <h1 className="h-page">
+            Интервью {caseInfo ? `· ${caseInfo.child_alias}` : ""} {caseInfo && <StageBadge stage={caseInfo.stage} />}
+          </h1>
           {caseInfo && (
             <p className="muted small">
               {caseInfo.age_text}, {caseInfo.city}. Отвечайте своими словами — здесь нет правильных и неправильных ответов.
@@ -142,25 +242,24 @@ export default function InterviewPage() {
           <div className="chat-progress">
             <div className="progress-head">
               <span>
-                Вопрос <b>{Math.min(Math.max(current, 1), max)}</b> из {max}
+                Вопрос <b>{Math.min(Math.max(current, 1), total)}</b> из {total}
               </span>
-              <span className="muted small">минимум {min}</span>
+              <span className="muted small">вопросы подбираются под вашу ситуацию (8–12)</span>
             </div>
             <div className="progress">
-              <div className="progress-fill" style={{ width: `${(Math.min(current, max) / max) * 100}%` }} />
-              <div className="progress-min" style={{ left: `${(min / max) * 100}%` }} />
+              <div className="progress-fill" style={{ width: `${(Math.min(current, total) / total) * 100}%` }} />
             </div>
           </div>
 
-          <div className="chat">
+          <div className="chat" ref={chatRef}>
             <div className="bubble bot">
-              Здравствуйте! Я задам несколько вопросов, чтобы собрать для вашей семьи единый маршрут помощи. Диагнозы я не
-              ставлю и ребёнка не оцениваю.
+              Здравствуйте! Анкету вы уже заполнили. Теперь несколько вопросов о том, что уже получается и что мешает. Диагнозы я
+              не ставлю и ребёнка не оцениваю.
             </div>
             {answered.map((i) => (
               <div key={i.n} className="chat-pair">
                 <div className="bubble bot">
-                  {i.question}
+                  {i.text}
                   {i.source === "llm" && <span className="pill pill-ai pill-xs">AI</span>}
                 </div>
                 <div className="bubble me">
@@ -169,27 +268,34 @@ export default function InterviewPage() {
                 </div>
               </div>
             ))}
-            {phase === "question" && question && (
+            {phase === "question" && item && (
               <div className="bubble bot current">
-                <div className="q-topic">{question.topic_label ?? question.topic}</div>
-                {question.question}
-                {question.source === "llm" && <span className="pill pill-ai pill-xs">AI</span>}
+                {item.text}
+                {item.source === "llm" && <span className="pill pill-ai pill-xs">AI</span>}
+              </div>
+            )}
+            {phase === "summary" && summary && (
+              <div className="bubble bot current wide" ref={summaryRef}>
+                <b>{item?.text}</b>
+                <SummaryEditor summary={summary} onConfirm={confirmSummary} busy={busy} />
               </div>
             )}
             {phase === "loading" && <div className="bubble bot muted">…</div>}
-            {submitting && phase === "question" && <div className="bubble bot typing">AI подбирает следующий вопрос…</div>}
+            {busy && phase === "question" && <div className="bubble bot typing">Подбираю следующий вопрос…</div>}
             {phase === "generating" && (
               <div className="bubble bot">
-                <span className="spinner spinner-sm" aria-hidden /> Спасибо! Составляю черновик маршрута из справочника услуг…
+                <span className="spinner spinner-sm" aria-hidden /> Спасибо! Собираю черновик маршрута из справочника услуг…
               </div>
             )}
             {phase === "finished" && (
               <div className="bubble bot">
-                <b>Готово.</b> Черновик маршрута отправлен куратору. Вы увидите план, как только он будет проверен и
-                подтверждён.
-                <div className="mt-sm">
+                <b>Готово.</b> Черновик маршрута отправлен куратору. Вы увидите план, как только он будет проверен и подтверждён.
+                <div className="mt-sm row gap-sm wrap">
                   <Link className="btn btn-primary btn-sm" href={`/parent/cases/${id}`}>
-                    Перейти к моему маршруту
+                    Мой маршрут
+                  </Link>
+                  <Link className="btn btn-sm" href={`/parent/cases/${id}/documents`}>
+                    Моя папка документов
                   </Link>
                 </div>
               </div>
@@ -198,25 +304,21 @@ export default function InterviewPage() {
             <div ref={bottomRef} />
           </div>
 
-          {phase === "question" && question && (
+          {phase === "question" && item && (
             <div className="composer">
-              {question.type !== "text" && (
+              {item.type !== "text" && (
                 <div className="chips">
-                  {question.options.map((o) => {
-                    const on = question.type === "single" ? single === o : multi.includes(o);
+                  {item.options.map((o) => {
+                    const on = item.type === "choice" ? single === o : multi.includes(o);
                     return (
-                      <button
-                        key={o}
-                        className={`chip ${on ? "on" : ""}`}
-                        disabled={submitting}
+                      <button key={o} className={`chip ${on ? "on" : ""}`} disabled={busy}
                         onClick={() => {
-                          if (question.type === "single") {
+                          if (item.type === "choice") {
                             setSingle(o);
                             setCustom("");
                           } else setMulti((m) => (m.includes(o) ? m.filter((x) => x !== o) : [...m, o]));
-                        }}
-                      >
-                        {question.type === "multi" && (on ? "✓ " : "+ ")}
+                        }}>
+                        {item.type === "multi" && (on ? "✓ " : "+ ")}
                         {o}
                       </button>
                     );
@@ -224,30 +326,26 @@ export default function InterviewPage() {
                 </div>
               )}
               <div className="composer-row">
-                <textarea
-                  className="input"
-                  rows={question.type === "text" ? 2 : 1}
-                  placeholder={question.type === "text" ? "Напишите своими словами" : "Или свой вариант"}
-                  value={custom}
-                  disabled={submitting}
+                <textarea className="input" rows={item.type === "text" ? 2 : 1} disabled={busy} value={custom}
+                  placeholder={item.type === "text" ? "Напишите своими словами" : "Или свой вариант"}
                   onChange={(e) => {
                     setCustom(e.target.value);
-                    if (question.type === "single" && e.target.value) setSingle(null);
+                    if (item.type === "choice" && e.target.value) setSingle(null);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
                       submit();
                     }
-                  }}
-                />
-                <button className="btn btn-primary" onClick={() => submit()} disabled={submitting || buildAnswer() === null}>
+                  }} />
+                <button className="btn btn-primary" onClick={submit} disabled={busy || buildAnswer() === null}>
                   Ответить
                 </button>
               </div>
               {error && <div className="alert alert-error">{error}</div>}
               {caseInfo?.scenario && settings?.demo_mode && (
-                <button className="btn btn-ghost btn-sm self-start" onClick={autofill} disabled={submitting} title="Оставшиеся ответы берутся из синтетического сценария">
+                <button className="btn btn-ghost btn-sm self-start" onClick={autofill} disabled={busy}
+                  title="Оставшиеся ответы берутся из синтетического кейса">
                   Заполнить демо-ответами
                 </button>
               )}
@@ -255,28 +353,6 @@ export default function InterviewPage() {
           )}
         </div>
       </div>
-
-      <aside className="stack">
-        {topics.length > 0 && (
-          <div className="card card-tight">
-            <h3 className="h-small">Темы интервью</h3>
-            <ul className="topic-list">
-              {topics.map((t) => {
-                const done = state?.covered_topics.includes(t.id);
-                const now = question?.topic === t.id && phase === "question";
-                return (
-                  <li key={t.id} className={done ? "done" : now ? "now" : ""}>
-                    <span className="topic-dot" aria-hidden>
-                      {done ? "✓" : now ? "•" : ""}
-                    </span>
-                    {t.label}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-      </aside>
     </div>
   );
 }

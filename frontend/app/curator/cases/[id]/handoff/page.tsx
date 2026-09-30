@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { AgencyBadge } from "@/components/Badges";
+import { AgencyBadge, StageBadge } from "@/components/Badges";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { LANGUAGE_LABEL, STATUS_LABEL, ageText, fmtDate } from "@/lib/format";
@@ -30,8 +30,14 @@ function StepTable({ steps, showOverdue }: { steps: HandoffStep[]; showOverdue?:
             </td>
             <td className="small">{s.owner}</td>
             <td className="nowrap">{fmtDate(s.completed_at ?? s.due_date)}</td>
-            <td className="nowrap">
-              {showOverdue ? <b className="text-danger">{s.days_overdue} дн.</b> : STATUS_LABEL[s.status]}
+            <td>
+              {showOverdue ? (
+                <b className="text-danger">{s.days_overdue} дн.</b>
+              ) : s.status === "locked" ? (
+                <span className="small">🔒 {s.unlock_hint || STATUS_LABEL.locked}</span>
+              ) : (
+                STATUS_LABEL[s.status]
+              )}
             </td>
           </tr>
         ))}
@@ -93,10 +99,13 @@ export default function HandoffPage() {
 
       <header className="handoff-head">
         <div className="muted small">AqylRoute AI · Передача дела · на {fmtDate(h.as_of)}</div>
-        <h1 className="h-page">{h.case.alias}</h1>
+        <h1 className="h-page">
+          {h.case.alias} <StageBadge stage={h.case.stage} />
+        </h1>
         <p className="muted">
           Ребёнок {ageText(h.case.age_months)}, {h.case.city}, язык общения: {LANGUAGE_LABEL[h.case.language]}
           {h.case.confirmed_at && ` · план подтверждён ${fmtDate(h.case.confirmed_at)}`}
+          {h.case.alert && " · есть красный флаг"}
         </p>
         <p className="handoff-summary">{h.summary_text}</p>
       </header>

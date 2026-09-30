@@ -3,20 +3,36 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { CaseStatusBadge } from "@/components/Badges";
+import { AlertBadge, CaseStatusBadge, StageBadge } from "@/components/Badges";
 import { DemoDateControl } from "@/components/DemoDateControl";
-import { DocSummary } from "@/components/DocSummary";
+import { DocFolder } from "@/components/DocFolder";
 import { StepCard, type StepPatch } from "@/components/StepCard";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { DOMAIN_LABEL, LANGUAGE_LABEL, PRIORITY_LABEL, SOURCE_LABEL, answerText, auditLabel, fmtDate, fmtDateTime } from "@/lib/format";
-import type { CaseView, Priority, Service } from "@/lib/types";
+import type { CaseView, Intake, Priority, Service } from "@/lib/types";
 
 interface AuditItem {
   id: number;
   action: string;
   actor: string | null;
   at: string;
+}
+
+const STATUS_RU = { none: "нет", valid: "действует", expired: "истекла", done: "проходили" } as const;
+
+function IntakeFacts({ i }: { i: Intake }) {
+  const d = (v: string | null) => (v ? fmtDate(v) : "");
+  return (
+    <ul className="facts">
+      <li>Заключение врача: {i.has_conclusion ? `есть${i.conclusion_date ? `, от ${d(i.conclusion_date)}` : ""}` : "нет"}</li>
+      <li>Наблюдение у врача: {i.dispensary ? "да" : "нет"}</li>
+      <li>Визит к педиатру: {i.pediatrician_visited ? "был" : "не было"}</li>
+      <li>M-CHAT-R: {i.mchat_status === "done" ? "проходили" : "не проходили"}</li>
+      <li>ПМПК: {STATUS_RU[i.pmpk_status]}{i.pmpk_date ? `, ${d(i.pmpk_date)}` : ""}</li>
+      <li>Справка МСЭ: {i.mse_status === "none" ? "не было" : STATUS_RU[i.mse_status]}{i.mse_valid_until ? `, до ${d(i.mse_valid_until)}` : ""}</li>
+    </ul>
+  );
 }
 
 export default function CuratorCasePage() {
@@ -28,6 +44,7 @@ export default function CuratorCasePage() {
   const [addId, setAddId] = useState("");
   const [addPrio, setAddPrio] = useState<Priority>("medium");
   const [busy, setBusy] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,6 +59,7 @@ export default function CuratorCasePage() {
       ]);
       setCase(cv);
       setAudit(a.items);
+      setVersion((v) => v + 1);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -66,12 +84,14 @@ export default function CuratorCasePage() {
     }
   }
 
-  const generate = (force = false) =>
-    run("generate", () => api("curator", `/cases/${id}/plan/generate`, { method: "POST", body: { force } }));
+  const generate = (force = false) => run("generate", () => api("curator", `/cases/${id}/plan/generate`, { method: "POST", body: { force } }));
   const confirmPlan = () => run("confirm", () => api("curator", `/cases/${id}/plan/confirm`, { method: "POST" }));
-  const autofill = () => run("autofill", () => api("curator", `/cases/${id}/interview/autofill`, { method: "POST" }));
-  const resetCase = () =>
-    confirm("Сбросить интервью и план этого кейса?") && run("reset", () => api("curator", `/cases/${id}/reset`, { method: "POST" }));
+  const autofill = () =>
+    run("autofill", async () => {
+      await api("curator", `/cases/${id}/interview/autofill`, { method: "POST" });
+      await api("curator", `/cases/${id}/interview/confirm`, { method: "POST", body: {} });
+    });
+  const resetCase = () => confirm("Сбросить интервью и план этого кейса?") && run("reset", () => api("curator", `/cases/${id}/reset`, { method: "POST" }));
   const regenerateConfirmed = () =>
     confirm("Пересобрать подтверждённый план? Статусы сбросятся, семья не увидит план до повторного подтверждения.") && generate(true);
   const addStep = () =>
@@ -89,19 +109,18 @@ export default function CuratorCasePage() {
       setError((e as Error).message);
     }
   }
-
-  async function remove(stepId: number) {
-    await run("delete", () => api("curator", `/steps/${stepId}`, { method: "DELETE" }));
-  }
+  const remove = (stepId: number) => run("delete", () => api("curator", `/steps/${stepId}`, { method: "DELETE" }));
+  const toggleDoc = async (docType: string, have: boolean) => {
+    await api("curator", `/cases/${id}/documents/${docType}`, { method: "PATCH", body: { have } });
+    await load();
+  };
 
   if (!c || !settings) return error ? <div className="alert alert-error">{error}</div> : <div className="card muted">Загрузка…</div>;
 
-  const answered = c.interview.items.filter((i) => i.answer !== null);
+  const answered = c.interview.items.filter((i) => i.answer !== null && i.qid !== "12");
   const meta = c.plan_meta;
   const inPlan = new Set(c.steps.map((s) => s.service_id));
   const addable = services.filter((s) => !inPlan.has(s.id));
-  const fitsAge = (s: Service) =>
-    (s.min_age_months === null || c.age_months >= s.min_age_months) && (s.max_age_months === null || c.age_months <= s.max_age_months);
 
   return (
     <div className="plan-layout">
@@ -111,20 +130,26 @@ export default function CuratorCasePage() {
             ← Панель куратора
           </Link>
           <h1 className="h-page">
-            {c.child_alias} <CaseStatusBadge status={c.status} />
+            {c.child_alias} <CaseStatusBadge status={c.status} /> <StageBadge stage={c.stage} /> {c.alert && <AlertBadge />}
           </h1>
           <p className="muted small">
-            {c.age_text} (род. {fmtDate(c.birth_date)}), {c.city}, язык: {LANGUAGE_LABEL[c.language]}
+            {c.age_text} (род. {fmtDate(c.birth_date)}), {c.city}, язык: {LANGUAGE_LABEL[c.language]} ·{" "}
+            {c.handling_mode === "curator" ? "ведёт куратор (есть препятствия у семьи)" : "ведёт система"}
           </p>
+          {c.red_flag_text && (
+            <div className="alert alert-error">
+              ⚠ Красный флаг в интервью. Семье показан текст: «{c.red_flag_text}» Свяжитесь с семьёй и врачом.
+            </div>
+          )}
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
 
-        {!c.interview_done && (
+        {!c.summary_confirmed && (
           <div className="card banner">
             <div>
               <b>Интервью не завершено</b>
-              <div className="muted small">Ответов: {c.interview.answered}. Родитель проходит интервью в своём кабинете.</div>
+              <div className="muted small">Ответов: {c.interview_answered}. План можно собрать после подтверждения сводки родителем.</div>
             </div>
             {c.scenario && settings.demo_mode && (
               <button className="btn" disabled={!!busy} onClick={autofill}>
@@ -134,14 +159,14 @@ export default function CuratorCasePage() {
           </div>
         )}
 
-        {c.interview_done && c.status === "draft" && (
+        {c.summary_confirmed && c.status === "draft" && (
           <div className="card banner">
             <div>
-              <b>Интервью завершено, плана пока нет</b>
-              <div className="muted small">AI соберёт черновик из справочника услуг.</div>
+              <b>Сводка подтверждена, плана пока нет</b>
+              <div className="muted small">Шаги определит ядро правил, AI напишет объяснения.</div>
             </div>
             <button className="btn btn-primary" disabled={!!busy} onClick={() => generate()}>
-              {busy === "generate" ? "Формируем план…" : "Сформировать план"}
+              {busy === "generate" ? "Формируем…" : "Сформировать план"}
             </button>
           </div>
         )}
@@ -150,7 +175,7 @@ export default function CuratorCasePage() {
           <div className="card banner banner-warn">
             <div>
               <b>Черновик плана — проверьте перед показом семье</b>
-              <div className="muted small">Можно менять приоритет, удалять и добавлять шаги из справочника. Семья не видит план до подтверждения.</div>
+              <div className="muted small">Можно менять приоритет, добавлять шаги из справочника и оставлять заметки.</div>
             </div>
             <div className="row gap-sm wrap">
               <button className="btn" disabled={!!busy} onClick={() => generate(true)}>
@@ -167,14 +192,14 @@ export default function CuratorCasePage() {
           <div className="card banner banner-ok">
             <div>
               <b>План подтверждён{c.confirmed_at ? ` ${fmtDate(c.confirmed_at)}` : ""}</b>
-              <div className="muted small">Семья видит маршрут. Ведите статусы, документы и препятствия.</div>
+              <div className="muted small">Семья видит маршрут. Заблокированные шаги откроются автоматически.</div>
             </div>
             <div className="row gap-sm wrap">
               <Link className="btn btn-primary" href={`/curator/cases/${c.id}/handoff`}>
                 Передача дела
               </Link>
               <button className="btn btn-ghost btn-sm" disabled={!!busy} onClick={regenerateConfirmed}>
-                Пересобрать план
+                Пересобрать
               </button>
             </div>
           </div>
@@ -185,30 +210,22 @@ export default function CuratorCasePage() {
         {meta && (
           <details className="card card-tight">
             <summary className="small">
-              <b>Как собран план:</b> {SOURCE_LABEL[meta.source] ?? meta.source}
-              {meta.model && ` · модель ${meta.model}`} · шагов {meta.steps}
-              {meta.warnings.length > 0 && ` · предупреждений ${meta.warnings.length}`}
+              <b>Как собран план:</b> шаги — ядро правил; тексты — {SOURCE_LABEL[meta.source] ?? meta.source}
+              {meta.model && ` · ${meta.model}`} · шагов {meta.steps}
             </summary>
             <div className="small mt-sm stack-sm">
               <div className="muted">
-                Шаги — только из справочника. Сроки рассчитаны кодом: {fmtDate(meta.base_date)} + срок услуги по справочнику.
+                Какие шаги нужны, какие заблокированы и какие сроки — считает код от {fmtDate(meta.base_date)}. Модель только пишет
+                объяснения и может изменить приоритет активных шагов.
               </div>
-              {meta.warnings.length > 0 && (
-                <ul className="plain-list">
-                  {meta.warnings.map((w, i) => (
-                    <li key={i}>⚠️ {w}</li>
-                  ))}
-                </ul>
-              )}
-              {meta.errors.length > 0 && (
-                <ul className="plain-list">
-                  {meta.errors.map((w, i) => (
-                    <li key={i} className="text-danger">
-                      {w}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              {meta.warnings.map((w, i) => (
+                <div key={i}>⚠️ {w}</div>
+              ))}
+              {meta.errors.map((w, i) => (
+                <div key={i} className="text-danger">
+                  {w}
+                </div>
+              ))}
             </div>
           </details>
         )}
@@ -216,33 +233,25 @@ export default function CuratorCasePage() {
         {c.steps.length > 0 && (
           <div className="steps">
             {c.steps.map((s) => (
-              <StepCard
-                key={`${s.id}-${s.curator_note}-${s.blocker_note}`}
-                step={s}
-                role="curator"
-                today={settings.today}
-                editable
-                onPatch={patch}
-                onDelete={remove}
-              />
+              <StepCard key={`${s.id}-${s.curator_note}-${s.blocker_note}-${version}`} step={s} role="curator" editable
+                onPatch={patch} onDelete={remove} onToggleDoc={toggleDoc} version={version} />
             ))}
           </div>
         )}
 
         {c.status !== "draft" && (
-          <div className="card card-tight add-step">
+          <div className="card card-tight">
             <h3 className="h-small">Добавить шаг из справочника</h3>
             <div className="row gap-sm wrap">
               <select className="input input-sm grow" value={addId} onChange={(e) => setAddId(e.target.value)}>
                 <option value="">Выберите услугу…</option>
                 {Object.entries(DOMAIN_LABEL).map(([d, label]) => {
-                  const items = addable.filter((s) => s.domain === d);
-                  return items.length ? (
+                  const list = addable.filter((s) => s.domain === d);
+                  return list.length ? (
                     <optgroup key={d} label={label}>
-                      {items.map((s) => (
+                      {list.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.title}
-                          {fitsAge(s) ? "" : " (не по возрасту)"}
                         </option>
                       ))}
                     </optgroup>
@@ -274,27 +283,37 @@ export default function CuratorCasePage() {
 
       <aside className="stack">
         <div className="card card-tight">
-          <h3 className="h-small">Ответы интервью ({answered.length})</h3>
+          <h3 className="h-small">Анкета Q0</h3>
+          <IntakeFacts i={c.intake} />
+        </div>
+        <div className="card card-tight">
+          <h3 className="h-small">
+            Сводка интервью ({answered.length}) {c.summary_confirmed && <span className="pill pill-muted pill-xs">подтверждена</span>}
+          </h3>
           {answered.length === 0 && <p className="muted small">Пока нет ответов.</p>}
-          <ol className="qa-list">
+          <dl className="slot-list">
             {answered.map((i) => (
-              <li key={i.n}>
-                <div className="muted small">
-                  {i.question}
+              <div key={i.qid}>
+                <dt className="muted small">
+                  {settings.slot_labels[i.slot] ?? i.slot}
                   {i.source === "llm" && <span className="pill pill-ai pill-xs">AI</span>}
                   {i.autofilled && <span className="pill pill-muted pill-xs">демо</span>}
-                </div>
-                <div>{answerText(i.answer)}</div>
-              </li>
+                  {i.corrected && <span className="pill pill-muted pill-xs">исправлено</span>}
+                </dt>
+                <dd>{answerText(i.answer)}</dd>
+              </div>
             ))}
-          </ol>
+          </dl>
         </div>
-        <DocSummary steps={c.steps} />
+        <div className="card card-tight">
+          <h3 className="h-small">Папка документов</h3>
+          <DocFolder key={version} caseId={c.id} role="curator" onChange={load} compact />
+        </div>
         {audit.length > 0 && (
           <div className="card card-tight">
             <h3 className="h-small">Журнал</h3>
             <ul className="audit-list">
-              {audit.map((a) => (
+              {audit.slice(0, 15).map((a) => (
                 <li key={a.id}>
                   <span className="muted small">{fmtDateTime(a.at)}</span> {auditLabel(a.action)}
                 </li>

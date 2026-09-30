@@ -44,13 +44,18 @@ export function DemoDateControl({ onChange }: { onChange: () => void }) {
             onChange={(e) => e.target.value && send({ date: e.target.value })}
             aria-label="Дата демо"
           />
-          {[1, 7, 10, 14].map((d) => (
+          {[1, 7, 14].map((d) => (
             <button key={d} className="btn btn-sm" disabled={busy} onClick={() => send({ shift_days: d })}>
-              +{d}
+              +{d} {d === 1 ? "день" : "дней"}
             </button>
           ))}
-          <button className="btn btn-sm btn-ghost" disabled={busy || !settings.demo_today} onClick={() => send({ date: null })}>
-            Сброс ({fmtDate(settings.real_today)})
+          <button
+            className="btn btn-sm btn-ghost"
+            disabled={busy || settings.today === settings.seed_today}
+            onClick={() => send({ date: settings.seed_today })}
+            title="Дата, от которой посчитаны синтетические кейсы"
+          >
+            Сброс ({fmtDate(settings.seed_today)})
           </button>
         </div>
       </div>

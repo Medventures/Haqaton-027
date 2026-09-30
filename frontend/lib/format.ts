@@ -7,6 +7,7 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
 };
 
 export const STATUS_LABEL: Record<StepStatus, string> = {
+  locked: "Заблокирован",
   todo: "Не начат",
   in_progress: "В работе",
   done: "Выполнен",
@@ -32,7 +33,14 @@ export const BLOCKER_LABEL: Record<Blocker, string> = {
   awaiting_agency: "Ждём ответа ведомства",
   no_service_in_region: "Услуги нет в регионе",
   family_declined: "Семья отказалась",
+  decision_disputed: "Не согласны с решением",
 };
+
+export const STAGE_LABEL = {
+  early: "Раннее вмешательство",
+  correction: "Коррекция",
+  socialization: "Социализация",
+} as const;
 
 export const LANGUAGE_LABEL = { ru: "Русский", kk: "Қазақша" } as const;
 
@@ -47,6 +55,8 @@ export const AUDIT_LABEL: Record<string, string> = {
   case_created: "Кейс создан",
   plan_confirmed: "План подтверждён",
   handoff_exported: "Передача дела экспортирована",
+  summary_confirmed: "Сводка интервью подтверждена",
+  red_flag: "Красный флаг в интервью",
 };
 
 export function auditLabel(action: string): string {
@@ -55,6 +65,9 @@ export function auditLabel(action: string): string {
   if (kind === "plan_generated") return `План сформирован (${SOURCE_LABEL[arg]?.split(" (")[0] ?? arg})`;
   if (kind === "step_added") return `Добавлен шаг: ${arg}`;
   if (kind === "step_removed") return `Удалён шаг: ${arg}`;
+  if (kind === "step_done") return `Выполнен шаг: ${arg}`;
+  if (kind === "document_on") return `Документ отмечен: ${arg}`;
+  if (kind === "document_off") return `Документ снят: ${arg}`;
   return action;
 }
 

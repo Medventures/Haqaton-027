@@ -1,17 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import {
-  AgencyBadge,
-  BlockerBadge,
-  DomainBadge,
-  EscalatedBadge,
-  OverdueBadge,
-  PriorityBadge,
-  StatusBadge,
-} from "./Badges";
-import { BLOCKER_LABEL, PRIORITY_LABEL, STATUS_LABEL, daysUntil, daysWord, fmtDate } from "@/lib/format";
-import type { Blocker, Doc, Priority, Role, Step, StepStatus } from "@/lib/types";
+import { AgencyBadge, BlockerBadge, DomainBadge, IndicatorBadge, PriorityBadge, StatusBadge } from "./Badges";
+import { HelpPanel } from "./HelpPanel";
+import { BLOCKER_LABEL, PRIORITY_LABEL, STATUS_LABEL, daysWord, fmtDate } from "@/lib/format";
+import type { Blocker, Letter, Priority, Role, Step, StepStatus } from "@/lib/types";
 
 export interface StepPatch {
   status?: StepStatus;
@@ -19,55 +12,54 @@ export interface StepPatch {
   blocker?: Blocker | null;
   blocker_note?: string;
   curator_note?: string;
-  documents?: Doc[];
 }
 
 interface Props {
   step: Step;
   role: Role;
-  today: string;
   editable: boolean;
   onPatch?: (id: number, patch: StepPatch) => Promise<void>;
   onDelete?: (id: number) => Promise<void>;
+  onToggleDoc?: (docType: string, have: boolean) => Promise<void>;
+  version?: number;
 }
 
-const STATUSES = Object.keys(STATUS_LABEL) as StepStatus[];
+const EDITABLE_STATUSES: Exclude<StepStatus, "locked">[] = ["todo", "in_progress", "done"];
 const PRIORITIES = Object.keys(PRIORITY_LABEL) as Priority[];
 const BLOCKERS = Object.keys(BLOCKER_LABEL) as Blocker[];
+const BASIS_LABEL: Record<Step["due_basis"], string> = {
+  default: "срок по справочнику",
+  document_expiry: "окончание действия справки",
+  age_window: "конец возрастного окна",
+  rule: "срок по правилу",
+};
 
-export function StepCard({ step, role, today, editable, onPatch, onDelete }: Props) {
+export function StepCard({ step, role, editable, onPatch, onDelete, onToggleDoc, version }: Props) {
   const [note, setNote] = useState(step.curator_note);
   const [blockerNote, setBlockerNote] = useState(step.blocker_note);
   const [saving, setSaving] = useState(false);
-  const [showNotice, setShowNotice] = useState(false);
-  const left = daysUntil(step.due_date, today);
+  const needsHelp = ["overdue", "escalated", "due_soon"].includes(step.indicator) || (!!step.blocker && step.status !== "done");
+  const [showHelp, setShowHelp] = useState(needsHelp && role === "curator");
   const isCurator = role === "curator";
+  const locked = step.status === "locked";
 
-  async function patch(p: StepPatch) {
-    if (!onPatch) return;
+  async function run(fn: () => Promise<void>) {
     setSaving(true);
     try {
-      await onPatch(step.id, p);
+      await fn();
     } finally {
       setSaving(false);
     }
   }
+  const patch = (p: StepPatch) => onPatch && run(() => onPatch(step.id, p));
 
-  const cls = [
-    "step",
-    step.status === "done" ? "step-done" : "",
-    step.overdue ? "step-overdue" : "",
-    step.blocker && step.status !== "done" ? "step-blocked" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const haveCount = step.documents.filter((d) => d.have).length;
+  const haveCount = step.documents.filter((d) => d.have && !d.optional).length;
+  const required = step.documents.filter((d) => !d.optional).length;
 
   return (
-    <article className={cls}>
+    <article className={`step ind-${step.indicator}`}>
       <div className="step-num" aria-hidden>
-        {step.status === "done" ? "✓" : step.position}
+        {step.status === "done" ? "✓" : locked ? "🔒" : step.position}
       </div>
       <div className="step-body">
         <div className="step-head">
@@ -79,7 +71,7 @@ export function StepCard({ step, role, today, editable, onPatch, onDelete }: Pro
                 title="Удалить шаг из плана"
                 aria-label="Удалить шаг"
                 disabled={saving}
-                onClick={() => confirm(`Удалить шаг «${step.title}» из плана?`) && onDelete(step.id)}
+                onClick={() => confirm(`Удалить шаг «${step.title}» из плана?`) && run(() => onDelete(step.id))}
               >
                 ✕
               </button>
@@ -90,55 +82,74 @@ export function StepCard({ step, role, today, editable, onPatch, onDelete }: Pro
             <DomainBadge domain={step.domain} />
             <PriorityBadge priority={step.priority} />
             <StatusBadge status={step.status} />
-            <OverdueBadge days={step.days_overdue} />
-            {isCurator && step.escalated && <EscalatedBadge />}
+            <IndicatorBadge indicator={step.indicator} days={step.days_overdue} daysToDue={step.days_to_due} />
             {step.blocker && step.status !== "done" && <BlockerBadge blocker={step.blocker} />}
           </div>
         </div>
+
+        {locked && step.unlock_hint && (
+          <div className="lock-note">
+            🔒 Откроется {step.unlock_hint}
+            {step.unlock_date ? ` (с ${fmtDate(step.unlock_date)})` : ""}.
+          </div>
+        )}
 
         <p className="step-why">
           <span className="label">Зачем это нужно:</span> {step.explanation}
         </p>
 
-        {step.blocker && step.blocker_note && step.status !== "done" && (
-          <div className="blocker-note">
-            <b>Препятствие:</b> {step.blocker_note}
-          </div>
-        )}
-
         <dl className="step-meta">
           <div>
-            <dt>Ответственный</dt>
+            <dt>Кто выполняет</dt>
             <dd>{step.owner}</dd>
           </div>
           <div>
             <dt>Срок</dt>
-            <dd className={step.overdue ? "text-danger" : ""}>
+            <dd className={step.overdue ? "text-danger" : step.due_soon ? "text-warn" : ""}>
               {fmtDate(step.due_date)}
+              <span className="muted small"> · {BASIS_LABEL[step.due_basis]}</span>
               {step.status === "done" && step.completed_at && (
                 <span className="muted small"> · выполнено {fmtDate(step.completed_at)}</span>
               )}
-              {step.status !== "done" && !step.overdue && (
-                <span className="muted small"> · {left === 0 ? "сегодня" : `осталось ${left} ${daysWord(left)}`}</span>
+              {!locked && step.status !== "done" && !step.overdue && step.days_to_due !== null && (
+                <span className="muted small">
+                  {" "}
+                  · {step.days_to_due === 0 ? "сегодня" : `осталось ${step.days_to_due} ${daysWord(step.days_to_due)}`}
+                </span>
               )}
             </dd>
           </div>
+          <div>
+            <dt>Как подать</dt>
+            <dd className="small">
+              {step.channel_label}. {step.how_to}
+            </dd>
+          </div>
+          <div>
+            <dt>Сколько занимает</dt>
+            <dd className="small">{step.typical_duration}</dd>
+          </div>
           <div className="span-2">
             <dt>
-              Документы · есть {haveCount} из {step.documents.length}
+              Документы · есть {haveCount} из {required}{" "}
+              <span className="muted">(отметка общая для всех шагов — единая папка)</span>
             </dt>
             <dd>
               <ul className="doc-checks">
                 {step.documents.map((d) => (
-                  <li key={d.name}>
+                  <li key={d.doc_type}>
                     <label className={`doc-check ${d.have ? "have" : ""}`}>
                       <input
                         type="checkbox"
                         checked={d.have}
-                        disabled={!editable || saving}
-                        onChange={(e) => patch({ documents: [{ name: d.name, have: e.target.checked }] })}
+                        disabled={!onToggleDoc || saving}
+                        onChange={(e) => onToggleDoc && run(() => onToggleDoc(d.doc_type, e.target.checked))}
                       />
-                      <span>{d.name}</span>
+                      <span>
+                        {d.name}
+                        {d.optional && <span className="muted"> (если есть)</span>}
+                      </span>
+                      {d.expired && <span className="pill pill-warn pill-xs">истёк срок</span>}
                     </label>
                   </li>
                 ))}
@@ -153,12 +164,18 @@ export function StepCard({ step, role, today, editable, onPatch, onDelete }: Pro
           </div>
         )}
 
+        {step.blocker && step.blocker_note && step.status !== "done" && (
+          <div className="blocker-note">
+            <b>Препятствие:</b> {step.blocker_note}
+          </div>
+        )}
+
         {editable && (
           <div className="step-controls">
             {!isCurator ? (
               <div className="segmented segmented-sm" role="group" aria-label="Статус шага">
-                {STATUSES.map((s) => (
-                  <button key={s} className={step.status === s ? "active" : ""} disabled={saving} onClick={() => patch({ status: s })}>
+                {EDITABLE_STATUSES.map((s) => (
+                  <button key={s} className={step.status === s ? "active" : ""} disabled={saving || locked} onClick={() => patch({ status: s })}>
                     {STATUS_LABEL[s]}
                   </button>
                 ))}
@@ -167,8 +184,14 @@ export function StepCard({ step, role, today, editable, onPatch, onDelete }: Pro
               <>
                 <label className="field-inline">
                   <span className="muted small">Статус</span>
-                  <select className="input input-sm" value={step.status} disabled={saving} onChange={(e) => patch({ status: e.target.value as StepStatus })}>
-                    {STATUSES.map((s) => (
+                  <select
+                    className="input input-sm"
+                    value={step.status}
+                    disabled={saving || locked}
+                    onChange={(e) => patch({ status: e.target.value as StepStatus })}
+                  >
+                    {locked && <option value="locked">{STATUS_LABEL.locked}</option>}
+                    {EDITABLE_STATUSES.map((s) => (
                       <option key={s} value={s}>
                         {STATUS_LABEL[s]}
                       </option>
@@ -177,10 +200,16 @@ export function StepCard({ step, role, today, editable, onPatch, onDelete }: Pro
                 </label>
                 <label className="field-inline">
                   <span className="muted small">Приоритет</span>
-                  <select className="input input-sm" value={step.priority} disabled={saving} onChange={(e) => patch({ priority: e.target.value as Priority })}>
+                  <select
+                    className="input input-sm"
+                    value={step.priority ?? step.base_priority}
+                    disabled={saving}
+                    onChange={(e) => patch({ priority: e.target.value as Priority })}
+                  >
                     {PRIORITIES.map((p) => (
                       <option key={p} value={p}>
                         {PRIORITY_LABEL[p]}
+                        {locked ? " (после открытия)" : ""}
                       </option>
                     ))}
                   </select>
@@ -232,17 +261,18 @@ export function StepCard({ step, role, today, editable, onPatch, onDelete }: Pro
           </div>
         )}
 
-        {isCurator && step.notification && (
-          <div className="escalation">
-            <div className="row between wrap gap-sm">
-              <span>
-                <b>Эскалация:</b> просрочка больше порога. Подготовлен черновик уведомления руководителю.
-              </span>
-              <button className="btn btn-sm btn-ghost" onClick={() => setShowNotice((v) => !v)}>
-                {showNotice ? "Скрыть" : "Показать черновик"}
-              </button>
-            </div>
-            {showNotice && <NotificationDraft n={step.notification} />}
+        {step.status !== "done" && (
+          <div>
+            <button className="btn btn-sm btn-ghost" onClick={() => setShowHelp((v) => !v)}>
+              {showHelp ? "Скрыть помощь" : needsHelp ? "Помощь семье: что собрать" : "Что понадобится"}
+            </button>
+            {showHelp && <HelpPanel stepId={step.id} role={role} version={version} />}
+          </div>
+        )}
+
+        {isCurator && step.notification && !showHelp && (
+          <div className="escalation small">
+            <b>Эскалация:</b> подготовлен черновик уведомления руководителю — откройте «Помощь семье».
           </div>
         )}
       </div>
@@ -250,7 +280,7 @@ export function StepCard({ step, role, today, editable, onPatch, onDelete }: Pro
   );
 }
 
-export function NotificationDraft({ n }: { n: NonNullable<Step["notification"]> }) {
+export function LetterDraft({ n }: { n: Letter }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="notice">
