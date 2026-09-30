@@ -157,6 +157,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       : null;
   const is = (href: string) => pathname === href;
 
+  // The landing page is a standalone marketing page: no sidebar and no top bar of the cabinet.
+  if (pathname === "/")
+    return (
+      <>
+        {children}
+        <Translator lang={lang} />
+      </>
+    );
+
   return (
     <div className="shell">
       <aside className="sidebar no-print">

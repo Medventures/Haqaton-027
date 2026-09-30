@@ -2,22 +2,35 @@
 
 import { useRouter } from "next/navigation";
 import { Ico, type IconName } from "@/components/Icons";
-import { useApp, usePageMeta } from "@/lib/app-context";
+import { useApp } from "@/lib/app-context";
 import type { Role } from "@/lib/types";
 
 const STEPS: { icon: IconName; title: string; text: string }[] = [
-  { icon: "file", title: "Документы из eGov", text: "МСЭ, ПМПК и ИПР — без сканов" },
+  { icon: "file", title: "Документы из eGov", text: "МСЭ, ПМПК и ИПР — с вашего согласия, без сканов" },
   { icon: "chat", title: "8–12 вопросов", text: "Только то, чего нет в документах" },
-  { icon: "route", title: "План и куратор", text: "Шаги, сроки и напоминания" },
+  { icon: "route", title: "План и куратор", text: "Шаги, сроки, напоминания и помощь куратора" },
 ];
 
-const PRINCIPLES: { icon: IconName; text: string }[] = [
-  { icon: "shield", text: "Без диагнозов и советов по лечению" },
-  { icon: "check", text: "Шаги только из каталога услуг" },
-  { icon: "clock", text: "Сроки и зависимости считает код" },
+const FOR: { icon: IconName; title: string; points: string[]; cta: string; role: Role; path: string }[] = [
+  {
+    icon: "users",
+    title: "Для семьи",
+    points: ["Один план вместо разрозненных справок", "Напоминания о сроках", "Единая папка документов"],
+    cta: "Войти через eGov",
+    role: "parent",
+    path: "/parent/login",
+  },
+  {
+    icon: "shield",
+    title: "Для куратора",
+    points: ["Все семьи и сроки на одном экране", "Эскалации и красные флаги", "Передача дела в один клик"],
+    cta: "Кабинет куратора",
+    role: "curator",
+    path: "/curator",
+  },
 ];
 
-/** Decorative preview of a plan: shows what the family gets, instead of describing it. */
+/** Product preview: what the family gets, shown instead of described. Decorative. */
 function PlanPreview() {
   return (
     <div className="lp-preview" aria-hidden>
@@ -55,7 +68,7 @@ function PlanPreview() {
           </span>
         </div>
       </div>
-      <div className="lp-card lp-toast">
+      <div className="lp-card lp-toast lp-toast-1">
         <span className="lp-toast-ico">
           <Ico name="clock" size={16} />
         </span>
@@ -80,7 +93,6 @@ function PlanPreview() {
 export default function Home() {
   const { setRole, lang, setLang } = useApp();
   const router = useRouter();
-  usePageMeta("Добро пожаловать", "Единый маршрут помощи семье");
 
   function go(r: Role, path: string) {
     setRole(r);
@@ -89,61 +101,123 @@ export default function Home() {
 
   return (
     <div className="lp">
-      <section className="lp-hero">
-        <div className="lp-copy">
-          <span className="lp-pill">
-            <span className="lp-pill-dot" /> Здравоохранение · образование · соцзащита
-          </span>
-          <h1>Единый маршрут ребёнка с РАС</h1>
-          <p className="lp-lead">Документы из госсистем, несколько вопросов — и понятный план с напоминаниями.</p>
-          <div className="lp-actions">
-            <button className="btn btn-primary btn-lg lp-cta" onClick={() => go("parent", "/parent/login")}>
-              Войти через eGov <Ico name="arrow" size={18} />
+      <header className="lp-nav">
+        <nav className="lp-nav-links" aria-label="Разделы страницы">
+          <a href="#how">Как это работает</a>
+          <a href="#for">Для кого</a>
+        </nav>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/aqylroute-logo.svg" alt="AqylRoute AI" className="lp-logo" />
+        <div className="lp-nav-right">
+          <div className="lp-lang no-translate" role="group" aria-label="Язык / Тіл">
+            <button className={lang === "ru" ? "active" : ""} onClick={() => setLang("ru")}>
+              Рус
             </button>
-            <button className="btn btn-lg lp-secondary" onClick={() => go("curator", "/curator")}>
-              Я куратор
-            </button>
-          </div>
-          <div className="lp-meta">
-            <div className="segmented no-translate" aria-label="Язык">
-              <button className={lang === "kk" ? "active" : ""} onClick={() => setLang("kk")}>
-                Қазақша
-              </button>
-              <button className={lang === "ru" ? "active" : ""} onClick={() => setLang("ru")}>
-                Русский
-              </button>
-            </div>
-            <button className="link-btn small" onClick={() => go("parent", "/parent")}>
-              Анкета без eGov
+            <button className={lang === "kk" ? "active" : ""} onClick={() => setLang("kk")}>
+              Қаз
             </button>
           </div>
-          {lang === "kk" && <span className="hint">Аударма автоматты түрде жасалған, тексерілуде.</span>}
+          <button className="lp-btn lp-btn-primary lp-btn-sm" onClick={() => go("parent", "/parent/login")}>
+            Войти
+          </button>
         </div>
-        <PlanPreview />
+      </header>
+
+      <section className="lp-hero">
+        <span className="lp-pill">
+          <span className="lp-pill-dot" /> Здравоохранение · образование · соцзащита
+        </span>
+        <h1>
+          Единый маршрут
+          <br />
+          ребёнка с <span className="lp-accent">РАС</span>
+        </h1>
+        <p className="lp-lead">Документы из госсистем, несколько вопросов — и понятный план с напоминаниями.</p>
+        <div className="lp-actions">
+          <button className="lp-btn lp-btn-primary" onClick={() => go("parent", "/parent/login")}>
+            Войти через eGov <Ico name="arrow" size={18} />
+          </button>
+          <button className="lp-btn lp-btn-ghost" onClick={() => go("curator", "/curator")}>
+            Я куратор
+          </button>
+        </div>
+        <button className="lp-link" onClick={() => go("parent", "/parent")}>
+          Анкета без eGov
+        </button>
+        <div className="lp-lang lp-lang-mobile no-translate" role="group" aria-label="Язык / Тіл">
+          <button className={lang === "ru" ? "active" : ""} onClick={() => setLang("ru")}>
+            Рус
+          </button>
+          <button className={lang === "kk" ? "active" : ""} onClick={() => setLang("kk")}>
+            Қаз
+          </button>
+        </div>
+        {lang === "kk" && <span className="hint">Аударма автоматты түрде жасалған, тексерілуде.</span>}
       </section>
 
-      <section className="lp-steps">
-        {STEPS.map((s, i) => (
-          <div key={s.title} className="lp-step">
-            <span className="lp-step-ico">
-              <Ico name={s.icon} size={20} />
-            </span>
-            <div>
-              <span className="lp-step-num">Шаг {i + 1}</span>
+      <section className="lp-stage" aria-label="Как выглядит план">
+        <div className="lp-stage-side left">
+          <b>3 ведомства</b>
+          <span>в одном плане: здравоохранение, образование, соцзащита</span>
+        </div>
+        <PlanPreview />
+        <div className="lp-stage-side right">
+          <b>18 услуг</b>
+          <span>в каталоге — шаги берутся только из него</span>
+        </div>
+        <div className="lp-float lp-float-dark" aria-hidden>
+          <b>0</b>
+          <span>диагнозов и советов по лечению</span>
+        </div>
+      </section>
+
+      <section className="lp-section" id="how">
+        <span className="lp-kicker">Как это работает</span>
+        <h2>Три шага до плана</h2>
+        <div className="lp-steps">
+          {STEPS.map((s, i) => (
+            <div key={s.title} className="lp-step">
+              <span className="lp-step-ico">
+                <Ico name={s.icon} size={22} />
+              </span>
+              <span className="lp-step-num">0{i + 1}</span>
               <b>{s.title}</b>
               <span>{s.text}</span>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </section>
 
-      <ul className="lp-principles">
-        {PRINCIPLES.map((p) => (
-          <li key={p.text}>
-            <Ico name={p.icon} size={16} /> {p.text}
-          </li>
-        ))}
-      </ul>
+      <section className="lp-section" id="for">
+        <span className="lp-kicker">Для кого</span>
+        <h2>Семье — ясность, куратору — контроль сроков</h2>
+        <div className="lp-for">
+          {FOR.map((f) => (
+            <div key={f.title} className={`lp-for-card ${f.role}`}>
+              <span className="lp-step-ico">
+                <Ico name={f.icon} size={22} />
+              </span>
+              <b>{f.title}</b>
+              <ul>
+                {f.points.map((p) => (
+                  <li key={p}>
+                    <Ico name="check" size={15} /> {p}
+                  </li>
+                ))}
+              </ul>
+              <button className={`lp-btn ${f.role === "parent" ? "lp-btn-primary" : "lp-btn-ghost"}`} onClick={() => go(f.role, f.path)}>
+                {f.cta} <Ico name="arrow" size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer className="lp-footer">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/brand/aqylroute-logo.svg" alt="AqylRoute AI" className="lp-logo" />
+        <span>Все данные синтетические. Система не ставит диагнозы и не даёт медицинских рекомендаций; лечение назначает врач.</span>
+      </footer>
     </div>
   );
 }
