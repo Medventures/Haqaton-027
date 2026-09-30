@@ -157,6 +157,11 @@ def init_db() -> None:
             "CREATE TABLE IF NOT EXISTS translations (lang TEXT NOT NULL, src TEXT NOT NULL, dst TEXT NOT NULL, "
             "PRIMARY KEY (lang, src))"
         )
+        # «Вопрос по плану»: history (context) and the hourly limit. Added without a schema version bump.
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS ask_log (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id INTEGER NOT NULL, "
+            "at TEXT NOT NULL, message TEXT NOT NULL, answer TEXT NOT NULL, step_ids TEXT NOT NULL, source TEXT NOT NULL)"
+        )
         if conn.execute("SELECT COUNT(*) FROM cases").fetchone()[0] == 0:
             seed_cases(conn)
             set_demo_today(conn, date.fromisoformat(config.DEMO_SEED_TODAY))
@@ -227,7 +232,7 @@ def audit(conn, case_id: int | None, action: str, actor: str | None) -> None:
 
 def reset_demo() -> None:
     with tx() as conn:
-        for t in ("notifications", "plan_steps", "case_documents", "cases", "audit_log"):
+        for t in ("notifications", "plan_steps", "case_documents", "cases", "audit_log", "ask_log"):
             conn.execute(f"DELETE FROM {t}")
         conn.execute("DELETE FROM sqlite_sequence WHERE name IN ('cases', 'plan_steps', 'audit_log', 'notifications')")
         seed_cases(conn)

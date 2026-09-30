@@ -9,7 +9,8 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from . import config, db, gov, i18n, llm
+from . import ask as ak
+from . import config, db, gov, guards, i18n, llm
 from . import urgent_texts as ut
 from . import interview as iv
 from .catalog import (
@@ -412,6 +413,7 @@ def reset_case(case_id: int, _: Role = Depends(require_curator), __: None = Depe
         c = load_case(conn, case_id)
         conn.execute("DELETE FROM plan_steps WHERE case_id = ?", (case_id,))
         conn.execute("DELETE FROM notifications WHERE case_id = ?", (case_id,))
+        conn.execute("DELETE FROM ask_log WHERE case_id = ?", (case_id,))
         conn.execute(
             """UPDATE cases SET interview_json = ?, profile = '{}', summary_confirmed = 0, alert = 0,
                    handling_mode = 'system', status = 'draft', plan_meta = NULL, confirmed_at = NULL WHERE id = ?""",
@@ -834,6 +836,21 @@ def nearest_step(steps: list[dict]) -> dict | None:
     return {"id": best["id"], "title": best["title"], "due_date": best["due_date"], "indicator": indicator}
 
 
+def raise_urgent(conn, c: dict, kind: str, note: str | None, role: str, today: date) -> None:
+    """Alert (safety / regression), one curator notification per kind and day, audit record."""
+    note = " ".join((note or "").split())[:ut.NOTE_MAX]
+    if kind in ut.ALERT_KINDS and not c["alert"]:
+        conn.execute("UPDATE cases SET alert = 1 WHERE id = ?", (c["id"],))
+        c["alert"] = True
+    conn.execute(
+        "INSERT OR IGNORE INTO notifications (case_id, step_id, type, audience, message, dedup_key, created_at) "
+        "VALUES (?, NULL, 'red_flag', 'curator', ?, ?, ?)",
+        (c["id"], ut.curator_message(kind, c["child_alias"], note), f"{c['id']}:urgent:{kind}:{today.isoformat()}",
+         db.now_iso()),
+    )
+    db.audit(conn, c["id"], f"urgent:{kind}", role)
+
+
 @app.get("/api/urgent/options")
 def urgent_options():
     return {"top_text": ut.TOP_TEXT, "phones": ut.PHONES,
@@ -843,19 +860,10 @@ def urgent_options():
 @app.post("/api/cases/{case_id}/urgent")
 def urgent(case_id: int, body: UrgentIn, role: Role = Depends(get_role)):
     """Family asks for urgent help: fixed text, curator notification, nearest step. The LLM is never called."""
-    note = " ".join((body.note or "").split())[:ut.NOTE_MAX]
     with case_lock(case_id), db.tx() as conn:
         c = load_case(conn, case_id)
         today = db.get_today(conn)
-        if body.kind in ut.ALERT_KINDS and not c["alert"]:
-            conn.execute("UPDATE cases SET alert = 1 WHERE id = ?", (case_id,))
-        key = f"{case_id}:urgent:{body.kind}:{today.isoformat()}"
-        conn.execute(
-            "INSERT OR IGNORE INTO notifications (case_id, step_id, type, audience, message, dedup_key, created_at) "
-            "VALUES (?, NULL, 'red_flag', 'curator', ?, ?, ?)",
-            (case_id, ut.curator_message(body.kind, c["child_alias"], note), key, db.now_iso()),
-        )
-        db.audit(conn, case_id, f"urgent:{body.kind}", role)
+        raise_urgent(conn, c, body.kind, body.note, role, today)
         steps = refresh_steps(conn, c, db.load_services(conn), today) if c["status"] == "confirmed" else []
     return {"kind": body.kind, "text": ut.TEXTS[body.kind], "top_text": ut.TOP_TEXT, "curator_notified": True,
             "nearest_step": nearest_step(steps)}
@@ -870,6 +878,69 @@ def urgent_resolve(case_id: int, role: Role = Depends(require_curator)):
         conn.execute("UPDATE notifications SET read = 1 WHERE case_id = ? AND type = 'red_flag'", (case_id,))
         db.audit(conn, case_id, "urgent_resolved", role)
     return {"ok": True, "alert": False}
+
+
+# ---------- вопрос по плану ----------
+
+
+class AskIn(BaseModel):
+    message: str = Field(min_length=1, max_length=ak.MESSAGE_MAX)
+
+
+def _ask_out(answer: str, source: str, step_ids: list[str], steps: list[dict], services: dict, *,
+             needs_curator: bool, ask_curator: bool, curator_notified: bool = False) -> dict:
+    by_sid = {s["service_id"]: s for s in steps}
+    refs = [{"service_id": sid, "title": services[sid]["title"], "step_id": by_sid[sid]["id"] if sid in by_sid else None}
+            for sid in step_ids if sid in services]
+    return {"answer": answer, "source": source, "steps": refs, "needs_curator": needs_curator,
+            "ask_curator": ask_curator, "curator_notified": curator_notified}
+
+
+@app.post("/api/cases/{case_id}/ask")
+def ask_plan(case_id: int, body: AskIn, role: Role = Depends(get_role)):
+    """Guards without LLM first (danger → 112 + urgent, medical → refusal), then the model on this case's data only."""
+    message = " ".join(body.message.split())
+    if not message:
+        raise HTTPException(422, "Пустой вопрос")
+    kind = guards.classify(message)
+    with case_lock(case_id):
+        with db.tx() as conn:
+            c = load_case(conn, case_id)
+            today = db.get_today(conn)
+            services = db.load_services(conn)
+            steps = refresh_steps(conn, c, services, today)
+            plan_visible = role == "curator" or c["status"] == "confirmed"
+            if not plan_visible:
+                steps = []
+            if kind == "danger":
+                raise_urgent(conn, c, "safety", message, role, today)
+                conn.execute("INSERT INTO ask_log (case_id, at, message, answer, step_ids, source) VALUES (?, ?, ?, ?, '[]', ?)",
+                             (case_id, db.now_iso(), message, guards.DANGER_TEXT, "guard_danger"))
+                return _ask_out(guards.DANGER_TEXT, "guard_danger", [], steps, services,
+                                needs_curator=True, ask_curator=False, curator_notified=True)
+            if kind == "medical":
+                conn.execute("INSERT INTO ask_log (case_id, at, message, answer, step_ids, source) VALUES (?, ?, ?, ?, '[]', ?)",
+                             (case_id, db.now_iso(), message, guards.MEDICAL_TEXT, "guard_medical"))
+                return _ask_out(guards.MEDICAL_TEXT, "guard_medical", [], steps, services, needs_curator=False, ask_curator=True)
+            if ak.over_limit(conn, case_id):
+                raise HTTPException(429, guards.LIMIT_TEXT)
+            turns = ak.history(conn, case_id)
+        allowed = {s["service_id"] for s in steps} | set(services)
+        result, error = ak.ask_model(message, steps, plan_visible, turns, allowed)  # outside the DB transaction
+        with db.tx() as conn:
+            notified = False
+            if result is None:
+                if error == "unknown step ids":
+                    # The model referred to a service that is not in the catalog: hide it and tell the curator.
+                    raise_urgent(conn, c, "need_help", f"Помощник не смог ответить на вопрос: {message}", "system", today)
+                    notified = True
+                answer, source, ids, needs = ak.fallback_answer(steps), "fallback", [], True
+            else:
+                answer, source, ids, needs = result["answer"], "llm", result["step_ids"], result["needs_curator"]
+            conn.execute("INSERT INTO ask_log (case_id, at, message, answer, step_ids, source) VALUES (?, ?, ?, ?, ?, ?)",
+                         (case_id, db.now_iso(), message, answer, json.dumps(ids), source))
+            db.audit(conn, case_id, f"ask:{source}", role)
+    return _ask_out(answer, source, ids, steps, services, needs_curator=needs, ask_curator=needs, curator_notified=notified)
 
 
 # ---------- куратор ----------
