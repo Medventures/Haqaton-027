@@ -138,18 +138,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="shell">
       <aside className="sidebar no-print">
-        <Link href="/" className="brand">
-          <span className="brand-mark">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M4 20c4-2 4-6 8-8s4-6 8-8" />
-              <circle cx="4" cy="20" r="1.6" />
-              <circle cx="20" cy="4" r="1.6" />
-            </svg>
-          </span>
-          <span className="brand-name">
-            <b>AqylRoute</b>
-            <span>маршрут семьи</span>
-          </span>
+        <Link href="/" className="brand" aria-label="AqylRoute AI — на главную">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/aqylroute-logo.svg" alt="AqylRoute AI" className="brand-logo" />
         </Link>
 
         {c && (

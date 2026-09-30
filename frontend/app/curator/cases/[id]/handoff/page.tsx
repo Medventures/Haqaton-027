@@ -99,7 +99,11 @@ export default function HandoffPage() {
       </div>
 
       <header className="handoff-head">
-        <div className="muted small">AqylRoute AI · Передача дела · на {fmtDate(h.as_of)}</div>
+        <div className="row between wrap gap-sm">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/aqylroute-logo.svg" alt="AqylRoute AI" style={{ height: 26 }} />
+          <span className="muted small">Передача дела · на {fmtDate(h.as_of)}</span>
+        </div>
         <h1 className="h-page">
           {h.case.alias} <StageBadge stage={h.case.stage} />
         </h1>
