@@ -11,7 +11,7 @@ API_PORT ?= 8000
 help:
 	@echo "make install       — зависимости backend (venv) и frontend (npm ci)"
 	@echo "make run           — backend :$(API_PORT) + frontend :3000 (http://localhost:3000)"
-	@echo "make test          — pytest + проверка типов TypeScript"
+	@echo "make test          — pytest + проверка типов TypeScript + node --test"
 	@echo "make reset-db      — удалить SQLite; при старте база пересоздаётся из seed"
 	@echo "make eval          — 10 генераций плана на реальной модели (нужен OPENAI_API_KEY)"
 	@echo "make check-secrets — убедиться, что в истории git нет ключей"
@@ -33,7 +33,7 @@ frontend:
 
 test:
 	cd backend && .venv/bin/python -m pytest -q
-	cd frontend && npx tsc --noEmit
+	cd frontend && npx tsc --noEmit && node --test lib/*.test.ts
 
 build:
 	cd frontend && npm run build
