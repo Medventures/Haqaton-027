@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { AgencyBadge, AlertBadge, Chip, type Tone, BlockerBadge, CaseStatusBadge, EscalatedBadge, PriorityBadge, StageBadge } from "@/components/Badges";
+import { StatusBar, type Ind } from "@/components/Charts";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { HelpPanel } from "@/components/HelpPanel";
 import { api } from "@/lib/api";
 import { useApp, usePageMeta } from "@/lib/app-context";
 import { STATUS_LABEL, fmtDate, fmtDateTime, overdueLabel } from "@/lib/format";
 import type { AppNotification, CaseSummary, OverdueResponse, StepStatus } from "@/lib/types";
+import { Ico } from "@/components/Icons";
 
 const NOTIF: Record<AppNotification["type"], [string, Tone]> = {
   escalation: ["Эскалация", "urgent"],
@@ -17,6 +19,14 @@ const NOTIF: Record<AppNotification["type"], [string, Tone]> = {
   unlocked: ["Шаг открыт", "ok"],
   red_flag: ["Красный флаг", "urgent"],
 };
+
+/** Step counts of a case by indicator, from the summary numbers the API already returns. */
+function caseCounts(c: CaseSummary): Record<Ind, number> {
+  const escalated = c.escalated ?? 0;
+  const overdue = Math.max(0, c.overdue - escalated);
+  const rest = c.steps_total - c.steps_done - c.steps_locked - c.overdue - c.due_soon;
+  return { done: c.steps_done, ok: Math.max(0, rest), due_soon: c.due_soon, overdue, escalated, locked: c.steps_locked };
+}
 
 export default function CuratorDashboard() {
   const { ready, role, setRole, settings } = useApp();
@@ -92,6 +102,12 @@ export default function CuratorDashboard() {
     }
   }
 
+  const maxSteps = Math.max(1, ...(cases ?? []).map((c) => c.steps_total));
+  const totals = (cases ?? []).reduce((acc, c) => {
+    const k = caseCounts(c);
+    (Object.keys(acc) as Ind[]).forEach((i) => (acc[i] += k[i]));
+    return acc;
+  }, { done: 0, ok: 0, due_soon: 0, overdue: 0, escalated: 0, locked: 0 } as Record<Ind, number>);
   const awaiting = cases?.filter((c) => c.status === "awaiting_curator").length ?? 0;
   const alerts = cases?.filter((c) => c.alert).length ?? 0;
 
@@ -148,6 +164,31 @@ export default function CuratorDashboard() {
         </div>
       </section>
 
+      {cases && cases.some((c) => c.steps_total > 0) && (
+        <section className="card stack" style={{ gap: 12 }}>
+          <div className="card-head">
+            <h2>Шаги по делам</h2>
+            <span className="hint">Цвет — состояние шага, длина — число шагов</span>
+          </div>
+          <div className="portfolio">
+            {cases.filter((c) => c.steps_total > 0).map((c) => (
+              <Link key={c.id} href={`/curator/cases/${c.id}`} className="portfolio-row">
+                <span className="portfolio-name">
+                  {c.alert && <Ico name="alert" className="text-danger" />} {c.child_alias}
+                </span>
+                <span className="portfolio-bar" style={{ width: `${(c.steps_total / maxSteps) * 100}%` }}>
+                  <StatusBar counts={caseCounts(c)} legend={false} />
+                </span>
+                <span className="small muted nowrap">
+                  {c.steps_done}/{c.steps_total}
+                </span>
+              </Link>
+            ))}
+          </div>
+          <StatusBar counts={totals} />
+        </section>
+      )}
+
       <div className="grid-2 align-start">
         <section className="card">
           <h2>Дела</h2>
@@ -163,14 +204,18 @@ export default function CuratorDashboard() {
                     <div className="row gap-xs wrap mt-xs">
                       <StageBadge stage={c.stage} />
                       {!!c.escalated && <EscalatedBadge />}
-                      {!!c.overdue && <span className="chip-s tone-crit">просрочено: {c.overdue}</span>}
-                      {!!c.due_soon && <span className="chip-s tone-warn">скоро срок: {c.due_soon}</span>}
-                      {!!c.steps_locked && <span className="chip-s tone-muted">🔒 {c.steps_locked}</span>}
-                      {!!c.blockers && <span className="chip-s tone-warn">⛔ {c.blockers}</span>}
+                      {!!c.blockers && <span className="chip-s tone-warn"><Ico name="ban" size={12} /> {c.blockers}</span>}
                     </div>
+                    {c.steps_total > 0 && (
+                      <div className="case-bar mt-xs">
+                        <StatusBar counts={caseCounts(c)} legend={false} thin />
+                        <span className="small muted nowrap">
+                          {c.steps_done}/{c.steps_total}
+                        </span>
+                      </div>
+                    )}
                     <div className="muted small mt-xs">
                       {c.age_text}, {c.city} · {c.handling_mode === "curator" ? "ведёт куратор" : "ведёт система"}
-                      {c.steps_total > 0 && ` · выполнено ${c.steps_done} из ${c.steps_total}`}
                     </div>
                   </div>
                   <Link className={`btn ${c.status === "awaiting_curator" ? "btn-primary" : ""}`} href={`/curator/cases/${c.id}`}>

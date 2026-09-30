@@ -5,6 +5,7 @@ import { AgencyBadge, BlockerBadge, DomainBadge, PriorityBadge, StepStatusChip }
 import { HelpPanel } from "./HelpPanel";
 import { BLOCKER_LABEL, PRIORITY_LABEL, STATUS_LABEL, fmtDate, lockHint } from "@/lib/format";
 import type { Blocker, Letter, Priority, Role, Step, StepStatus } from "@/lib/types";
+import { Ico } from "./Icons";
 
 export interface StepPatch {
   status?: StepStatus;
@@ -71,7 +72,7 @@ export function StepCard({ step, role, editable, onPatch, onDelete, onToggleDoc,
     <article id={`step-${step.id}`} className={`step ind-${step.indicator}`}>
       <div className="step-top">
         <span className="step-num" aria-hidden>
-          {step.status === "done" ? "✓" : locked ? "🔒" : step.position}
+          {step.status === "done" ? <Ico name="check" size={16} /> : locked ? <Ico name="lock" size={15} /> : step.position}
         </span>
         <div className="step-main">
           <div className="step-chips">
@@ -82,17 +83,25 @@ export function StepCard({ step, role, editable, onPatch, onDelete, onToggleDoc,
           </div>
           <h3 className="step-title">{step.title}</h3>
           <div className="step-sub">
-            <span>Ответственный: {step.owner}</span>
-            <span className={due.cls} style={{ fontWeight: 500 }}>
-              {due.text}
+            <span className="with-ico" title="Ответственный">
+              <Ico name="user" /> {step.owner}
             </span>
-            <span>
-              Документы: {haveCount} из {required.length}
+            <span className={`with-ico ${due.cls}`} style={{ fontWeight: 500 }}>
+              <Ico name="calendar" /> {due.text}
             </span>
+            {required.length > 0 && (
+              <span className="with-ico" title={`Документы: ${haveCount} из ${required.length}`}>
+                <Ico name="file" />
+                <span className="mini-bar" aria-hidden>
+                  <span style={{ width: `${(haveCount / required.length) * 100}%` }} />
+                </span>
+                {haveCount}/{required.length}
+              </span>
+            )}
           </div>
           {locked && step.unlock_hint && (
             <div className="note-box lock">
-              🔒 {lockHint(step.unlock_hint)}
+              <Ico name="lock" /> {lockHint(step.unlock_hint)}
               {step.unlock_date && !step.unlock_hint.includes(fmtDate(step.unlock_date)) ? ` (с ${fmtDate(step.unlock_date)})` : ""}.
             </div>
           )}
@@ -105,7 +114,7 @@ export function StepCard({ step, role, editable, onPatch, onDelete, onToggleDoc,
             {isCurator && editable && onDelete && (
               <button className="icon-btn" title="Удалить шаг из плана" aria-label="Удалить шаг" disabled={saving}
                 onClick={() => confirm(`Удалить шаг «${step.title}» из плана?`) && run(() => onDelete(step.id))}>
-                ✕
+                <Ico name="close" size={15} />
               </button>
             )}
             <button className="link-btn" aria-expanded={open} onClick={() => setOpen((v) => !v)}>

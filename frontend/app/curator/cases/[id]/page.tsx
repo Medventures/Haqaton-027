@@ -5,11 +5,14 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AlertBadge, CaseStatusBadge, StageBadge } from "@/components/Badges";
 import { DocFolder } from "@/components/DocFolder";
-import { StepCard, type StepPatch } from "@/components/StepCard";
+import { PlanOverview } from "@/components/Charts";
+import { type StepPatch } from "@/components/StepCard";
+import { StepsView } from "@/components/StepsView";
 import { api } from "@/lib/api";
 import { useApp, usePageMeta } from "@/lib/app-context";
 import { DOMAIN_LABEL, LANGUAGE_LABEL, PRIORITY_LABEL, SOURCE_LABEL, answerText, auditLabel, fmtDate, fmtDateTime } from "@/lib/format";
 import type { CaseView, Intake, Priority, Service } from "@/lib/types";
+import { Ico } from "@/components/Icons";
 
 interface AuditItem {
   id: number;
@@ -140,10 +143,10 @@ export default function CuratorCasePage() {
             <div className="alert alert-crit stack-sm">
               {urgent.length > 0 ? (
                 <span>
-                  ⚠ Срочное обращение семьи: {urgent.map((n) => n.kind_label).join("; ")}. Свяжитесь с семьёй.
+                  <Ico name="alert" /> Срочное обращение семьи: {urgent.map((n) => n.kind_label).join("; ")}. Свяжитесь с семьёй.
                 </span>
               ) : (
-                <span>⚠ Красный флаг в интервью. Семье показан текст: «{c.red_flag_text}» Свяжитесь с семьёй и врачом.</span>
+                <span><Ico name="alert" /> Красный флаг в интервью. Семье показан текст: «{c.red_flag_text}» Свяжитесь с семьёй и врачом.</span>
               )}
               <div>
                 <button className="btn btn-sm" disabled={!!busy} onClick={resolveUrgent}>
@@ -229,7 +232,7 @@ export default function CuratorCasePage() {
                 объяснения и может изменить приоритет активных шагов.
               </div>
               {meta.warnings.map((w, i) => (
-                <div key={i}>⚠️ {w}</div>
+                <div key={i} className="with-ico"><Ico name="alert" /> {w}</div>
               ))}
               {meta.errors.map((w, i) => (
                 <div key={i} className="text-danger">
@@ -241,12 +244,11 @@ export default function CuratorCasePage() {
         )}
 
         {c.steps.length > 0 && (
-          <div className="steps">
-            {c.steps.map((s) => (
-              <StepCard key={`${s.id}-${s.curator_note}-${s.blocker_note}-${version}`} step={s} role="curator" editable
-                onPatch={patch} onDelete={remove} onToggleDoc={toggleDoc} version={version} />
-            ))}
-          </div>
+          <>
+            <PlanOverview steps={c.steps} today={settings.today} />
+            <StepsView steps={c.steps} role="curator" version={version} onPatch={patch} onDelete={remove} onToggleDoc={toggleDoc}
+              cardKey={(s) => `${s.id}-${s.curator_note}-${s.blocker_note}-${version}`} />
+          </>
         )}
 
         {c.status !== "draft" && (

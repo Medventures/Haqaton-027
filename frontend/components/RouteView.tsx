@@ -1,11 +1,14 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { ProgressRing } from "./Charts";
 import { STATUS_LABEL, fmtDate, lockHint } from "@/lib/format";
 import { computeLayers, routeEdges } from "@/lib/route";
+import type { IconName } from "./Icons";
 import type { Step } from "@/lib/types";
+import { Ico } from "./Icons";
 
-const ICON: Record<Step["status"], string> = { done: "✓", in_progress: "●", todo: "○", locked: "🔒" };
+const ICON: Record<Step["status"], IconName> = { done: "check", in_progress: "dot", todo: "circle", locked: "lock" };
 
 const LEGEND: [string, string][] = [
   ["done", "выполнено"],
@@ -27,26 +30,6 @@ function nodeLabel(s: Step): string {
     : STATUS_LABEL[s.status].toLowerCase();
   const due = dueLine(s);
   return `Шаг ${s.position}: ${s.title}, ${state}, ${due[0].toLowerCase()}${due.slice(1)}`;
-}
-
-function ProgressRing({ done, total }: { done: number; total: number }) {
-  const r = 22;
-  const len = 2 * Math.PI * r;
-  const part = total ? done / total : 0;
-  return (
-    <div className="route-progress" role="img" aria-label={`${done} из ${total} выполнено`}>
-      <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden>
-        <circle cx="28" cy="28" r={r} fill="none" stroke="var(--line)" strokeWidth="6" />
-        {part > 0 && (
-          <circle cx="28" cy="28" r={r} fill="none" stroke="var(--ok)" strokeWidth="6" strokeLinecap="round"
-            strokeDasharray={`${len * part} ${len}`} transform="rotate(-90 28 28)" />
-        )}
-      </svg>
-      <span>
-        <b>{done}</b> из {total} выполнено
-      </span>
-    </div>
-  );
 }
 
 type Line = { d: string; key: string };
@@ -101,7 +84,12 @@ export function RouteView({ steps, selected, onSelect }: { steps: Step[]; select
   return (
     <div className="card stack" style={{ gap: 16 }}>
       <div className="row between wrap gap-sm">
-        <ProgressRing done={done} total={steps.length} />
+        <div className="row gap-sm" style={{ alignItems: "center" }}>
+          <ProgressRing done={done} total={steps.length} size={52} />
+          <span className="small">
+            <b>{done}</b> из {steps.length} выполнено
+          </span>
+        </div>
         <ul className="route-legend" aria-label="Цвета шагов">
           {LEGEND.map(([ind, label]) => (
             <li key={ind}>
@@ -132,9 +120,7 @@ export function RouteView({ steps, selected, onSelect }: { steps: Step[]; select
                   aria-label={nodeLabel(s)} aria-pressed={selected === s.id} onClick={() => onSelect(s.id)}>
                   <span className="route-node-head">
                     <span className="route-num">{s.position}</span>
-                    <span className="route-icon" aria-hidden>
-                      {ICON[s.status]}
-                    </span>
+                    <Ico name={ICON[s.status]} className="route-icon" />
                   </span>
                   <b className="route-title">{s.title}</b>
                   <span className="route-due">{dueLine(s)}</span>

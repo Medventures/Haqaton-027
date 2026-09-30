@@ -5,13 +5,15 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Chip } from "@/components/Badges";
 import { HelpPanel } from "@/components/HelpPanel";
-import { RouteView } from "@/components/RouteView";
-import { StepCard, type StepPatch } from "@/components/StepCard";
+import { PlanOverview, ProgressRing } from "@/components/Charts";
+import { type StepPatch } from "@/components/StepCard";
+import { StepsView } from "@/components/StepsView";
 import { api } from "@/lib/api";
 import { useApp, usePageMeta } from "@/lib/app-context";
 import { STAGE_LABEL, fmtDate } from "@/lib/format";
 import { remindersFor } from "@/lib/reminders";
 import type { CaseView } from "@/lib/types";
+import { Ico } from "@/components/Icons";
 
 export default function MyRoutePage() {
   const { id } = useParams<{ id: string }>();
@@ -19,8 +21,6 @@ export default function MyRoutePage() {
   const [c, setCase] = useState<CaseView | null>(null);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [view, setView] = useState<"list" | "route">("list");
-  const [picked, setPicked] = useState<number | null>(null);
   usePageMeta("План", c ? `${c.child_alias} · этап «${STAGE_LABEL[c.stage]}»` : undefined);
 
   useEffect(() => {
@@ -77,7 +77,7 @@ export default function MyRoutePage() {
       <div className="stack" style={{ maxWidth: 620 }}>
         <h1 className="h-page">План на проверке у куратора</h1>
         <p className="lead">Куратор проверит каждый шаг и сроки. Как только план будет подтверждён, он появится здесь.</p>
-        {c.red_flag_text && <div className="alert alert-crit">⚠ {c.red_flag_text}</div>}
+        {c.red_flag_text && <div className="alert alert-crit"><Ico name="alert" /> {c.red_flag_text}</div>}
         <div className="row gap-sm wrap">
           <button className="btn btn-primary" onClick={load}>
             Обновить
@@ -90,8 +90,6 @@ export default function MyRoutePage() {
     );
   }
 
-  const done = c.steps.filter((s) => s.status === "done").length;
-  const overdue = c.steps.filter((s) => s.overdue).length;
   const soon = c.steps.filter((s) => s.due_soon);
   const reminders = remindersFor(c).slice(0, 3);
   const docs = new Map<string, boolean>();
@@ -110,59 +108,18 @@ export default function MyRoutePage() {
           const n = c.notifications.find((x) => x.step_id === s.id && x.type === "due_soon");
           return (
             <div key={s.id} className="banner-due">
-              <b>⏰ {n?.message ?? `Скоро срок шага «${s.title}»`}</b>
+              <b className="with-ico"><Ico name="clock" /> {n?.message ?? `Скоро срок шага «${s.title}»`}</b>
               <HelpPanel stepId={s.id} role="parent" version={version} />
             </div>
           );
         })}
 
-        <div className="stats">
-          <div className="stat">
-            <b>{c.steps.length}</b>
-            <span>шагов в плане</span>
-          </div>
-          <div className="stat ok">
-            <b>{done}</b>
-            <span>выполнено</span>
-          </div>
-          <div className="stat accent">
-            <b>{c.steps_locked}</b>
-            <span>откроются позже</span>
-          </div>
-          <div className={`stat ${overdue ? "crit" : ""}`}>
-            <b>{overdue}</b>
-            <span>просрочено</span>
-          </div>
-        </div>
+        <PlanOverview steps={c.steps} today={settings.today} />
 
         {error && <div className="alert alert-error">{error}</div>}
-        <div className="segmented" role="tablist" aria-label="Вид плана" style={{ alignSelf: "flex-start" }}>
-          <button role="tab" aria-selected={view === "list"} className={view === "list" ? "active" : ""} onClick={() => setView("list")}>
-            Список
-          </button>
-          <button role="tab" aria-selected={view === "route"} className={view === "route" ? "active" : ""} onClick={() => setView("route")}>
-            Маршрут
-          </button>
-        </div>
-        {view === "list" ? (
-          <div className="steps">
-            {c.steps.map((s) => (
-              <StepCard key={`${s.id}-${s.blocker_note}-${version}`} step={s} role="parent" editable onPatch={patch} onToggleDoc={toggleDoc}
-                version={version} defaultOpen={s.indicator === "overdue" || s.indicator === "escalated"} />
-            ))}
-          </div>
-        ) : (
-          <>
-            <RouteView steps={c.steps} selected={picked} onSelect={(sid) => {
-              setPicked(sid);
-              requestAnimationFrame(() => document.getElementById(`step-${sid}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
-            }} />
-            {c.steps.filter((s) => s.id === picked).map((s) => (
-              <StepCard key={`${s.id}-${s.blocker_note}-${version}-route`} step={s} role="parent" editable onPatch={patch}
-                onToggleDoc={toggleDoc} version={version} defaultOpen />
-            ))}
-          </>
-        )}
+        <StepsView steps={c.steps} role="parent" version={version} onPatch={patch} onToggleDoc={toggleDoc}
+          cardKey={(s) => `${s.id}-${s.blocker_note}-${version}`}
+          openByDefault={(s) => s.indicator === "overdue" || s.indicator === "escalated"} />
         <p className="hint">
           Шаги взяты из справочника услуг и ваших документов. Лечение назначает только врач — мы лишь напоминаем о шагах и сроках.
         </p>
@@ -193,12 +150,13 @@ export default function MyRoutePage() {
               Открыть папку
             </Link>
           </div>
-          <span className="small">
-            Для плана нужно {docs.size} документов, есть {docsHave}. Отметьте документ один раз — он учтётся во всех шагах.
-          </span>
-          <div className="progress">
-            <div className="progress-fill ok" style={{ width: `${(docsHave / Math.max(1, docs.size)) * 100}%` }} />
+          <div className="row gap-sm" style={{ alignItems: "center" }}>
+            <ProgressRing done={docsHave} total={docs.size} size={56} label="документов есть" />
+            <span className="small">
+              <b>{docsHave}</b> из {docs.size} документов на руках
+            </span>
           </div>
+          <span className="hint">Отметьте документ один раз — он учтётся во всех шагах.</span>
         </div>
         <div className="card stack-sm">
           <b>Куратор</b>
