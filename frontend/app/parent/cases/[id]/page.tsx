@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Chip } from "@/components/Badges";
 import { HelpPanel } from "@/components/HelpPanel";
+import { RouteView } from "@/components/RouteView";
 import { StepCard, type StepPatch } from "@/components/StepCard";
 import { api } from "@/lib/api";
 import { useApp, usePageMeta } from "@/lib/app-context";
@@ -18,6 +19,8 @@ export default function MyRoutePage() {
   const [c, setCase] = useState<CaseView | null>(null);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<"list" | "route">("list");
+  const [picked, setPicked] = useState<number | null>(null);
   usePageMeta("План", c ? `${c.child_alias} · этап «${STAGE_LABEL[c.stage]}»` : undefined);
 
   useEffect(() => {
@@ -133,12 +136,33 @@ export default function MyRoutePage() {
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
-        <div className="steps">
-          {c.steps.map((s) => (
-            <StepCard key={`${s.id}-${s.blocker_note}-${version}`} step={s} role="parent" editable onPatch={patch} onToggleDoc={toggleDoc}
-              version={version} defaultOpen={s.indicator === "overdue" || s.indicator === "escalated"} />
-          ))}
+        <div className="segmented" role="tablist" aria-label="Вид плана" style={{ alignSelf: "flex-start" }}>
+          <button role="tab" aria-selected={view === "list"} className={view === "list" ? "active" : ""} onClick={() => setView("list")}>
+            Список
+          </button>
+          <button role="tab" aria-selected={view === "route"} className={view === "route" ? "active" : ""} onClick={() => setView("route")}>
+            Маршрут
+          </button>
         </div>
+        {view === "list" ? (
+          <div className="steps">
+            {c.steps.map((s) => (
+              <StepCard key={`${s.id}-${s.blocker_note}-${version}`} step={s} role="parent" editable onPatch={patch} onToggleDoc={toggleDoc}
+                version={version} defaultOpen={s.indicator === "overdue" || s.indicator === "escalated"} />
+            ))}
+          </div>
+        ) : (
+          <>
+            <RouteView steps={c.steps} selected={picked} onSelect={(sid) => {
+              setPicked(sid);
+              requestAnimationFrame(() => document.getElementById(`step-${sid}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+            }} />
+            {c.steps.filter((s) => s.id === picked).map((s) => (
+              <StepCard key={`${s.id}-${s.blocker_note}-${version}-route`} step={s} role="parent" editable onPatch={patch}
+                onToggleDoc={toggleDoc} version={version} defaultOpen />
+            ))}
+          </>
+        )}
         <p className="hint">
           Шаги взяты из справочника услуг и ваших документов. Лечение назначает только врач — мы лишь напоминаем о шагах и сроках.
         </p>

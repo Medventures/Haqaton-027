@@ -2053,3 +2053,157 @@ textarea.input {
   border-top: 1px solid var(--line-soft);
   padding-top: 12px;
 }
+
+/* вид «Маршрут» */
+.route-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.route-progress b {
+  font-size: 18px;
+}
+.route-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.route-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.route-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--rn-line);
+  background: var(--rn-bg);
+}
+.route-box {
+  overflow-x: auto;
+}
+.route-inner {
+  position: relative;
+  min-width: 100%;
+  width: max-content;
+  max-width: 100%;
+}
+.route-arrows {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.route-layers {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+/* narrow: layers top to bottom; arrows run along the left gutter so they never cross a sibling */
+.route-layers {
+  padding-left: 26px;
+}
+.route-layer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@media (min-width: 641px) {
+  .route-inner {
+    max-width: none;
+  }
+  .route-layers {
+    flex-direction: row;
+    align-items: center;
+    gap: 48px;
+    padding-left: 0;
+  }
+  .route-layer {
+    width: 210px;
+    flex-shrink: 0;
+  }
+}
+.route-node,
+.route-dot {
+  --rn-bg: var(--surface);
+  --rn-line: var(--accent);
+  --rn-text: var(--text);
+}
+.route-node {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 2px solid var(--rn-line);
+  background: var(--rn-bg);
+  color: var(--rn-text);
+  text-align: left;
+}
+.route-node.on {
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 0 5px var(--accent);
+}
+.ind-done.route-node,
+.ind-done.route-dot {
+  --rn-bg: var(--ok-soft);
+  --rn-line: var(--ok);
+}
+.ind-due_soon.route-node,
+.ind-due_soon.route-dot {
+  --rn-bg: #fff6d6;
+  --rn-line: #c99a06;
+}
+.ind-overdue.route-node,
+.ind-overdue.route-dot {
+  --rn-bg: var(--crit-soft);
+  --rn-line: var(--crit);
+}
+.ind-escalated.route-node,
+.ind-escalated.route-dot {
+  --rn-bg: #ffd9d4;
+  --rn-line: #e0180b;
+}
+.ind-locked.route-node,
+.ind-locked.route-dot {
+  --rn-bg: var(--surface-3);
+  --rn-line: var(--faint);
+  --rn-text: var(--muted);
+}
+.route-node-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.route-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  font-weight: 600;
+}
+.route-title {
+  font-size: 14.5px;
+  line-height: 1.3;
+  hyphens: auto;
+  overflow-wrap: anywhere;
+}
+.route-due {
+  font-size: 12.5px;
+  color: var(--muted);
+}
