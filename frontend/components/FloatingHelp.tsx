@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { FaqTab } from "./FaqTab";
 import { useApp } from "@/lib/app-context";
 import { fmtDate } from "@/lib/format";
 import type { AskResult, UrgentKind, UrgentOptions, UrgentResult } from "@/lib/types";
@@ -28,11 +29,12 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<UrgentResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"urgent" | "ask">("urgent");
+  const [tab, setTab] = useState<"urgent" | "faq">("urgent");
   const [question, setQuestion] = useState("");
   const [chat, setChat] = useState<{ q: string; a: AskResult }[]>([]);
   const [askedCurator, setAskedCurator] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const questionRef = useRef<HTMLTextAreaElement>(null);
   const fabRef = useRef<HTMLButtonElement>(null);
 
   const close = useCallback(() => {
@@ -49,7 +51,7 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
   useEffect(() => {
     if (!open) return;
     const panel = panelRef.current;
-    panel?.querySelector<HTMLElement>("a, button, textarea")?.focus();
+    panel?.querySelector<HTMLElement>("a, button, textarea, input")?.focus();
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
@@ -57,7 +59,7 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
         return;
       }
       if (e.key !== "Tab" || !panel) return;
-      const items = [...panel.querySelectorAll<HTMLElement>("a[href], button:not(:disabled), textarea:not(:disabled)")];
+      const items = [...panel.querySelectorAll<HTMLElement>("a[href], button:not(:disabled), textarea:not(:disabled), input:not(:disabled), summary")];
       if (!items.length) return;
       const first = items[0];
       const last = items[items.length - 1];
@@ -151,7 +153,7 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
         <div ref={panelRef} id="urgent-panel" className="urgent-panel" role="dialog" aria-modal="false" aria-labelledby="urgent-title">
           <div className="row between" style={{ alignItems: "center" }}>
             <h2 id="urgent-title" className="urgent-title">
-              Срочная помощь
+              Помощь
             </h2>
             <button className="icon-btn" aria-label="Закрыть" onClick={close}>
               ✕
@@ -175,13 +177,18 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
               onClick={() => setTab("urgent")}>
               Срочно
             </button>
-            <button role="tab" aria-selected={tab === "ask"} className={tab === "ask" ? "active" : ""} style={{ flex: 1 }}
-              onClick={() => setTab("ask")}>
-              Вопрос по плану
+            <button role="tab" aria-selected={tab === "faq"} className={tab === "faq" ? "active" : ""} style={{ flex: 1 }}
+              onClick={() => setTab("faq")}>
+              Вопросы
             </button>
           </div>
 
-          {tab === "ask" ? (
+          {tab === "faq" ? (
+            <FaqTab caseId={caseId} onNavigate={close} onAskLuna={(q) => {
+              setQuestion(q.slice(0, 300));
+              questionRef.current?.focus();
+              questionRef.current?.scrollIntoView({ block: "nearest" });
+            }}>
             <div className="stack-sm" style={{ gap: 10 }}>
               <span className="hint">Луна — помощник по маршруту, не врач. Отвечает только про шаги вашего плана.</span>
               <div className="stack-sm" style={{ gap: 10 }} aria-live="polite">
@@ -217,7 +224,7 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
               </div>
               <label className="field">
                 <span className="hint">Ваш вопрос (до 300 символов)</span>
-                <textarea className="input" rows={2} maxLength={300} value={question} disabled={busy}
+                <textarea ref={questionRef} className="input" rows={2} maxLength={300} value={question} disabled={busy}
                   placeholder="Например: какие документы нужны для ПМПК?"
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyDown={(e) => {
@@ -231,6 +238,7 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
                 {busy ? "Луна думает…" : "Спросить"}
               </button>
             </div>
+            </FaqTab>
           ) : !result ? (
             <>
               <span className="urgent-label">Что случилось?</span>

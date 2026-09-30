@@ -155,6 +155,16 @@ export interface AppNotification {
   kind_label: string | null;
 }
 
+export interface FaqItem {
+  q: string;
+  a: string;
+}
+
+export interface Faq {
+  general: FaqItem[];
+  by_step: { step_id: number; service_id: string; title: string; items: FaqItem[] }[];
+}
+
 export interface AskResult {
   answer: string;
   source: "llm" | "fallback" | "guard_danger" | "guard_medical";

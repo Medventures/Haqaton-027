@@ -2019,3 +2019,37 @@ textarea.input {
   border-color: var(--crit-line);
   color: var(--crit-text);
 }
+
+/* вопросы (FAQ) в виджете */
+.faq-item,
+.faq-step {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+.faq-step {
+  background: var(--surface);
+}
+.faq-item summary,
+.faq-step summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.faq-step summary {
+  font-weight: 600;
+}
+.faq-step > div {
+  padding: 0 10px 10px;
+}
+.faq-item p {
+  margin: 0;
+  padding: 0 12px 10px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.faq-luna {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+}
