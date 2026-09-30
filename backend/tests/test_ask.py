@@ -114,3 +114,13 @@ def test_unconfirmed_plan_hidden_from_model(client, fake_llm):
     f = fake_llm(_answer(ids=()))
     _ask(client, cid, "Что дальше?")
     assert "EDU_PMPK" not in f.calls[0]["input"]
+
+
+def test_general_faq_question_fixed_answer(client, fake_llm):
+    from app import faq_texts as ft
+
+    cid = ready_plan(client, "2")
+    f = _no_llm(fake_llm)
+    q = next(i for i in ft.GENERAL if "диагноз" in i["q"])  # would hit the medical guard otherwise
+    r = _ask(client, cid, q["q"]).json()
+    assert r["source"] == "faq" and r["answer"] == q["a"] and f.calls == []

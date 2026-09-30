@@ -44,3 +44,9 @@ def build(steps: list[dict], services: dict[str, dict]) -> dict:
         "by_step": [{"step_id": s["id"], "service_id": s["service_id"], "title": s["title"],
                      "items": step_items(s, services[s["service_id"]])} for s in steps],
     }
+
+
+def general_answer(message: str) -> str | None:
+    """Fixed answer when the message is exactly one of the general FAQ questions."""
+    key = message.strip().casefold()
+    return next((i["a"] for i in ft.GENERAL if i["q"].casefold() == key), None)

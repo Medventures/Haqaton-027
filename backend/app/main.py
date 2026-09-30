@@ -934,6 +934,15 @@ def ask_plan(case_id: int, body: AskIn, role: Role = Depends(get_role)):
     message = " ".join(body.message.split())
     if not message:
         raise HTTPException(422, "Пустой вопрос")
+    # A question picked from the general FAQ gets its approved fixed answer: no model, no guards, no limit.
+    fixed = faq.general_answer(message)
+    if fixed is not None:
+        with db.tx() as conn:
+            services = db.load_services(conn)
+            load_case(conn, case_id)
+            conn.execute("INSERT INTO ask_log (case_id, at, message, answer, step_ids, source) VALUES (?, ?, ?, ?, '[]', 'faq')",
+                         (case_id, db.now_iso(), message, fixed))
+        return _ask_out(fixed, "faq", [], [], services, needs_curator=False, ask_curator=False)
     kind = guards.classify(message)
     with case_lock(case_id):
         with db.tx() as conn:
