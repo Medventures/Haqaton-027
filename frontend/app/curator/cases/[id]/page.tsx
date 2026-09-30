@@ -208,7 +208,7 @@ export default function CuratorCasePage() {
           <details className="card card-tight">
             <summary className="small">
               <b>Как собран план:</b> шаги — ядро правил; тексты — {SOURCE_LABEL[meta.source] ?? meta.source}
-              {meta.model && ` · ${meta.model}`} · шагов {meta.steps}
+              {" "}· шагов {meta.steps}
             </summary>
             <div className="small mt-sm stack-sm">
               <div className="muted">

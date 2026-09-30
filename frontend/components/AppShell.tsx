@@ -219,12 +219,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
             )}
             {role === "curator" && <DemoDate />}
-            {settings && (
-              <span className={`chip-s ${settings.llm_mode === "openai" ? "tone-accent" : "tone-muted"}`}
-                title={settings.llm_mode === "openai" ? "Вопросы и пояснения формирует модель OpenAI" : "Ключ OpenAI не задан: шаблоны и правила"}>
-                AI: {settings.llm_mode === "openai" ? settings.model : "демо-режим"}
-              </span>
-            )}
             <div className="segmented" role="group" aria-label="Роль">
               <button className={role === "parent" ? "active" : ""} onClick={() => switchRole("parent")}>
                 Родитель
