@@ -15,12 +15,6 @@ const INDICATOR_LABEL: Record<string, string> = {
   ok: "в работе",
 };
 
-// Numbers are also on the server (urgent_texts.py); they are duplicated here so the call links work even offline.
-const FALLBACK_PHONES = [
-  { number: "112", label: "Экстренные службы" },
-  { number: "103", label: "Скорая помощь" },
-];
-
 /** Floating «Срочная помощь» button on parent pages: fixed texts, curator notification, nearest step. No LLM. */
 export function FloatingHelp({ caseId }: { caseId: number }) {
   const { refreshShell } = useApp();
@@ -35,7 +29,7 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
   const [chat, setChat] = useState<{ q: string; a: AskResult }[]>([]);
   const [askedCurator, setAskedCurator] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const questionRef = useRef<HTMLTextAreaElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   const fabRef = useRef<HTMLButtonElement>(null);
 
   const close = useCallback(() => {
@@ -88,15 +82,16 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
     setAskedCurator(null);
   }, [caseId]);
 
-  async function ask() {
-    const q = question.trim();
-    if (!q) return;
+  async function ask(text?: string) {
+    const q = (text ?? question).trim().slice(0, 300);
+    if (!q || busy) return;
     setBusy(true);
     setError(null);
     try {
       const a = await api<AskResult>("parent", `/cases/${caseId}/ask`, { method: "POST", body: { message: q } });
       setChat((c) => [...c, { q, a }].slice(-5));
-      setQuestion("");
+      if (text === undefined) setQuestion("");
+      requestAnimationFrame(() => chatEndRef.current?.scrollIntoView({ block: "nearest" }));
       if (a.curator_notified) refreshShell();
     } catch (e) {
       setError((e as Error).message);
@@ -137,8 +132,6 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
     }
   }
 
-  const phones = opts?.phones ?? FALLBACK_PHONES;
-
   return (
     <>
       <button ref={fabRef} className="fab-help" aria-label="Срочная помощь" aria-expanded={open} aria-controls="urgent-panel"
@@ -172,28 +165,10 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
             </button>
           </div>
 
-          {tab === "urgent" && (
-            <div className="urgent-sos">
-              <p>{opts?.top_text ?? "Если ребёнок или кто-то рядом в опасности, звоните 112. Скорая помощь: 103."}</p>
-              <div className="urgent-phones">
-                {phones.map((p) => (
-                  <a key={p.number} className="urgent-phone" href={`tel:${p.number}`}>
-                    <b className="no-translate">{p.number}</b>
-                    <span>{p.label}</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
           {tab === "faq" ? (
-            <FaqTab caseId={caseId} onNavigate={close} onAskLuna={(q) => {
-              setQuestion(q.slice(0, 300));
-              questionRef.current?.focus();
-              questionRef.current?.scrollIntoView({ block: "nearest" });
-            }}>
             <div className="stack-sm" style={{ gap: 10 }}>
-              <span className="hint">Луна — помощник по маршруту, не врач. Отвечает только про шаги вашего плана.</span>
+              <span className="urgent-label">Спросите AqylRoute AI</span>
+              <span className="hint">AqylRoute AI — помощник по маршруту, не врач. Отвечает только про шаги вашего плана.</span>
               <div className="stack-sm" style={{ gap: 10 }} aria-live="polite">
                 {chat.map((m, i) => (
                   <div key={i} className="stack-sm" style={{ gap: 6 }}>
@@ -224,11 +199,12 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
                     </div>
                   </div>
                 ))}
+                {busy && <div className="ask-a muted">AqylRoute думает…</div>}
+                <div ref={chatEndRef} />
               </div>
-              <label className="field">
-                <span className="hint">Ваш вопрос (до 300 символов)</span>
-                <textarea ref={questionRef} className="input" rows={2} maxLength={300} value={question} disabled={busy}
-                  placeholder="Например: какие документы нужны для ПМПК?"
+              <div className="ask-input">
+                <textarea className="input" rows={2} maxLength={300} value={question} disabled={busy} aria-label="Ваш вопрос"
+                  placeholder="Ваш вопрос, например: какие документы нужны для ПМПК?"
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -236,12 +212,12 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
                       ask();
                     }
                   }} />
-              </label>
-              <button className="btn btn-primary btn-sm" disabled={busy || !question.trim()} onClick={ask}>
-                {busy ? "AqylRoute думает…" : "Спросить"}
-              </button>
+                <button className="btn btn-primary btn-sm" disabled={busy || !question.trim()} onClick={() => ask()}>
+                  {busy ? "AqylRoute думает…" : "Спросить"}
+                </button>
+              </div>
+              <FaqTab caseId={caseId} disabled={busy} onPick={(q) => ask(q)} />
             </div>
-            </FaqTab>
           ) : !result ? (
             <>
               <span className="urgent-label">Что случилось?</span>

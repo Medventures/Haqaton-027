@@ -182,7 +182,7 @@ export interface Faq {
 
 export interface AskResult {
   answer: string;
-  source: "llm" | "fallback" | "guard_danger" | "guard_medical";
+  source: "llm" | "fallback" | "guard_danger" | "guard_medical" | "faq";
   steps: { service_id: string; title: string; step_id: number | null }[];
   needs_curator: boolean;
   ask_curator: boolean;
