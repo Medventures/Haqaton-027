@@ -245,3 +245,22 @@ def test_demo_reset(client):
     assert all(c["status"] == "draft" for c in cases)
     assert client.get("/api/settings").json()["today"] == "2026-09-30"
     assert client.get("/api/curator/notifications", headers=CURATOR).json()["items"] == []
+
+
+def test_gov_sync_demo(client):
+    cid = case_id_by_scenario(client, "2")
+    r = client.post(f"/api/cases/{cid}/gov-sync", headers=PARENT).json()
+    assert [s["short"] for s in r["sources"]] == ["ГБД ФЛ", "НОБД", "МСЭ", "Портал"]
+    rows = {row["doc"]: row for row in r["rows"]}
+    assert rows["Справка МСЭ об инвалидности"]["tone"] == "crit"  # истекла 30.01.2026
+    assert rows["Заключение ПМПК"]["detail"] == "Сведений не найдено"
+    assert rows["Заключение врача"]["source"] == "Вручную"
+    folder = {d["doc_type"]: d for d in client.get(f"/api/cases/{cid}/documents", headers=PARENT).json()["documents"]}
+    assert folder["BIRTH_CERT"]["have"] and folder["ID_PARENT"]["have"]
+    client.post(f"/api/cases/{cid}/gov-sync", headers=PARENT)  # повтор — без дублей в журнале
+    audit = [a["action"] for a in client.get(f"/api/cases/{cid}/audit", headers=CURATOR).json()["items"]]
+    assert audit.count("gov_consent") == 1
+    # План кейса не меняется от документов из ГБД ФЛ.
+    run_interview(client, cid, "2")
+    client.post(f"/api/cases/{cid}/plan/generate", headers=PARENT)
+    assert set(steps_of(client, cid)) == {"EDU_PMPK", "SOC_MSE_REEXAM", "EDU_TUTOR"}

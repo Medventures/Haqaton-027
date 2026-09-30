@@ -1,12 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useApp, usePageMeta } from "@/lib/app-context";
 import type { Role } from "@/lib/types";
 
 export default function Home() {
   const { setRole } = useApp();
   const router = useRouter();
+  const [lang, setLang] = useState<"ru" | "kk">("ru");
   usePageMeta("Добро пожаловать", "Единый маршрут помощи семье");
 
   function pick(r: Role) {
@@ -19,17 +21,33 @@ export default function Home() {
       <section className="hero-grid">
         <div className="stack" style={{ gap: 22 }}>
           <span className="eyebrow">Для семей детей с РАС</span>
-          <h1>Один маршрут вместо хождения по ведомствам</h1>
+          <h1>Один план вместо пачки справок</h1>
           <p className="lead">
-            Короткая анкета и 8–12 вопросов — и у семьи единый план по линии здравоохранения, образования и соцзащиты: какие
-            шаги нужны сейчас, какие откроются позже и какие документы собрать.
+            Мы сами получим документы ребёнка из госсистем, зададим несколько вопросов и соберём план по линии здравоохранения,
+            образования и соцзащиты — с напоминаниями о сроках.
           </p>
           <div className="row gap-sm wrap">
-            <button className="btn btn-primary btn-lg" onClick={() => pick("parent")}>
-              Я родитель
+            <button className="btn btn-primary btn-lg" onClick={() => { setRole("parent"); router.push("/parent/login"); }}>
+              Войти через eGov
             </button>
-            <button className="btn btn-lg" onClick={() => pick("curator")}>
-              Я куратор
+            <div className="segmented">
+              <button className={lang === "kk" ? "active" : ""} onClick={() => setLang("kk")}>
+                Қазақша
+              </button>
+              <button className={lang === "ru" ? "active" : ""} onClick={() => setLang("ru")}>
+                Русский
+              </button>
+            </div>
+          </div>
+          {lang === "kk" && <span className="hint">Қазақша нұсқасы әзірленуде — әзірге орыс тілінде көрсетеміз.</span>}
+          <div className="row gap-sm wrap small">
+            <span className="muted">Вы специалист?</span>
+            <button className="link-btn" onClick={() => pick("curator")}>
+              Войти как куратор
+            </button>
+            <span className="muted">·</span>
+            <button className="link-btn" onClick={() => pick("parent")}>
+              Анкета без eGov
             </button>
           </div>
         </div>
@@ -40,22 +58,22 @@ export default function Home() {
           <div className="how-step">
             <span className="how-num">1</span>
             <div>
-              <b>Анкета и вопросы</b>
-              <span>Отмечаем, что уже есть у семьи, и задаём только те вопросы, ответов на которые нет в анкете.</span>
+              <b>Документы — из госсистем</b>
+              <span>С вашего согласия получаем справку МСЭ, заключение ПМПК и ИПР. Ничего не нужно сканировать. Медицинские данные не запрашиваем.</span>
             </div>
           </div>
           <div className="how-step">
             <span className="how-num">2</span>
             <div>
-              <b>План из каталога услуг</b>
-              <span>Код определяет шаги, сроки и что откроется после чего. AI объясняет каждый шаг простым языком.</span>
+              <b>8–12 вопросов</b>
+              <span>Только о том, чего нет в документах: что уже получается и что мешает.</span>
             </div>
           </div>
           <div className="how-step">
             <span className="how-num">3</span>
             <div>
-              <b>Куратор и напоминания</b>
-              <span>Куратор проверяет план, видит просрочки и помогает собрать документы. Семья получает напоминания.</span>
+              <b>План, куратор и напоминания</b>
+              <span>Шаги — из каталога услуг, сроки и зависимости считает код. Куратор проверяет план и помогает, если что-то не получается.</span>
             </div>
           </div>
         </div>

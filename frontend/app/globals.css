@@ -1828,3 +1828,8 @@ textarea.input {
     height: 24px;
   }
 }
+@media (max-width: 900px) {
+  .sync-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

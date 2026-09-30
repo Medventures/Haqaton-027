@@ -10,6 +10,7 @@ import { remindersFor } from "@/lib/reminders";
 import type { CaseView, Role, Stage } from "@/lib/types";
 
 const STAGES: Stage[] = ["early", "correction", "socialization"];
+const ONBOARDING = ["Вход через eGov", "Согласие", "Документы из госсистем", "Вопросы", "План на проверке"];
 const STAGE_AGES: Record<Stage, string> = { early: "до 3 лет", correction: "3–7 лет", socialization: "7–18 лет" };
 
 function Icon({ name }: { name: "plan" | "bell" | "doc" | "chat" | "list" | "case" | "handoff" | "home" }) {
@@ -132,6 +133,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const stageIdx = c ? STAGES.indexOf(c.stage) : -1;
+  const onboardingIdx = pathname === "/parent/login" ? 0
+    : pathname.endsWith("/consent") ? 1
+    : pathname.endsWith("/sync") ? 2
+    : pathname.endsWith("/interview") ? (c?.summary_confirmed ? 4 : 3)
+    : -1;
   const parentReminders = c && c.plan_visible ? remindersFor(c).filter((r) => r.tone === "crit" || r.tone === "warn").length : c?.alert ? 1 : 0;
   const is = (href: string) => pathname === href;
 
@@ -152,7 +158,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <nav className="side-nav" aria-label="Разделы">
+        {onboardingIdx < 0 && <nav className="side-nav" aria-label="Разделы">
           <span className="side-label">Разделы</span>
           {m?.[1] === "parent" && c ? (
             <>
@@ -184,9 +190,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <NavLink href="/parent" icon="list" label="Кабинет родителя" active={is("/parent")} />
             </>
           )}
-        </nav>
+        </nav>}
 
-        {c && (
+        {onboardingIdx >= 0 && (
+          <nav className="side-nav side-stages" aria-label="Шаги входа">
+            <span className="side-label">Этапы</span>
+            {ONBOARDING.map((label, i) => (
+              <div key={label} className={`stage-row ${i < onboardingIdx ? "past" : i === onboardingIdx ? "current" : ""}`}>
+                <span className="stage-dot">{i < onboardingIdx ? "✓" : i + 1}</span>
+                <span>{label}</span>
+              </div>
+            ))}
+          </nav>
+        )}
+
+        {c && onboardingIdx < 0 && (
           <nav className="side-nav side-stages" aria-label="Этапы маршрута">
             <span className="side-label">Этапы маршрута</span>
             {STAGES.map((s, i) => (

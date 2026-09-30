@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from . import config, db, llm
+from . import config, db, gov, llm
 from . import interview as iv
 from .catalog import (
     CHANNELS, DOMAIN_LABELS, QUESTIONS_BY_ID, SCENARIOS, SLOT_LABELS, STAGES,
@@ -401,6 +401,31 @@ def reset_case(case_id: int, _: Role = Depends(require_curator), __: None = Depe
             issued, valid = dates.get(doc, (None, None))
             db.set_case_document(conn, case_id, doc, True, issued, valid, keep_dates=False)
     return {"ok": True}
+
+
+# ---------- вход через eGov (имитация) ----------
+
+
+@app.post("/api/cases/{case_id}/gov-sync")
+def gov_sync(case_id: int, role: Role = Depends(get_role)):
+    """Демо: согласие семьи и «получение» документов из госсистем. Реальных запросов нет."""
+    with case_lock(case_id), db.tx() as conn:
+        c = load_case(conn, case_id)
+        today = db.get_today(conn)
+        for doc in gov.GBD_DOCS:
+            row = conn.execute("SELECT have FROM case_documents WHERE case_id = ? AND doc_type = ?", (case_id, doc)).fetchone()
+            if not row or not row["have"]:
+                issued = c["birth_date"] if doc == "BIRTH_CERT" else None
+                db.set_case_document(conn, case_id, doc, True, issued, None, keep_dates=False)
+        if not conn.execute("SELECT 1 FROM audit_log WHERE case_id = ? AND action = 'gov_consent'", (case_id,)).fetchone():
+            db.audit(conn, case_id, "gov_consent", role)
+        folder = db.load_case_documents(conn, case_id, today)
+        return {"sources": gov.SOURCES, "not_requested": gov.NOT_REQUESTED, "rows": gov.build_rows(c, folder, today)}
+
+
+@app.get("/api/gov/sources")
+def gov_sources():
+    return {"sources": gov.SOURCES, "not_requested": gov.NOT_REQUESTED}
 
 
 # ---------- единая папка документов ----------

@@ -119,6 +119,18 @@ export default function ParentHome() {
     <div className="stack-lg">
       {error && <div className="alert alert-error">{error}</div>}
 
+      <section className="card banner" style={{ background: "var(--accent-soft)", borderColor: "#c9ded9" }}>
+        <div className="stack-sm">
+          <b>Войдите через eGov — документы подтянутся сами</b>
+          <span className="small" style={{ color: "var(--text-2)" }}>
+            Справка МСЭ, заключение ПМПК и ИПР из госсистем; вам останется ответить на 8–12 вопросов. В демо вход имитируется.
+          </span>
+        </div>
+        <Link className="btn btn-primary" href="/parent/login">
+          Войти через eGov
+        </Link>
+      </section>
+
       {mine && mine.length > 0 && (
         <section className="card">
           <h2>Мои кейсы</h2>

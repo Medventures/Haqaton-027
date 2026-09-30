@@ -307,3 +307,25 @@ export interface Handoff {
   gaps: { domain: Domain; label: string }[];
   summary_text: string;
 }
+
+export interface GovSource {
+  key: string;
+  short: string;
+  name: string;
+  what: string;
+}
+
+export interface GovRow {
+  doc: string;
+  source: string;
+  issued: string;
+  validity: string;
+  tone: "ok" | "warn" | "crit" | "muted";
+  detail: string;
+}
+
+export interface GovSync {
+  sources: GovSource[];
+  not_requested: string;
+  rows: GovRow[];
+}
