@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { fmtDate } from "@/lib/format";
-import type { UrgentKind, UrgentOptions, UrgentResult } from "@/lib/types";
+import type { AskResult, UrgentKind, UrgentOptions, UrgentResult } from "@/lib/types";
 
 const INDICATOR_LABEL: Record<string, string> = {
   overdue: "просрочен",
@@ -28,6 +28,10 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<UrgentResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"urgent" | "ask">("urgent");
+  const [question, setQuestion] = useState("");
+  const [chat, setChat] = useState<{ q: string; a: AskResult }[]>([]);
+  const [askedCurator, setAskedCurator] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const fabRef = useRef<HTMLButtonElement>(null);
 
@@ -76,7 +80,41 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
     setResult(null);
     setNote("");
     setError(null);
+    setChat([]);
+    setQuestion("");
+    setAskedCurator(null);
   }, [caseId]);
+
+  async function ask() {
+    const q = question.trim();
+    if (!q) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const a = await api<AskResult>("parent", `/cases/${caseId}/ask`, { method: "POST", body: { message: q } });
+      setChat((c) => [...c, { q, a }].slice(-5));
+      setQuestion("");
+      if (a.curator_notified) refreshShell();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function askCurator(q: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api<UrgentResult>("parent", `/cases/${caseId}/urgent`, { method: "POST", body: { kind: "need_help", note: q } });
+      setAskedCurator(q);
+      refreshShell();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function send(kind: UrgentKind) {
     setBusy(true);
@@ -132,7 +170,68 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
             </div>
           </div>
 
-          {!result ? (
+          <div className="segmented" style={{ display: "flex" }} role="tablist">
+            <button role="tab" aria-selected={tab === "urgent"} className={tab === "urgent" ? "active" : ""} style={{ flex: 1 }}
+              onClick={() => setTab("urgent")}>
+              Срочно
+            </button>
+            <button role="tab" aria-selected={tab === "ask"} className={tab === "ask" ? "active" : ""} style={{ flex: 1 }}
+              onClick={() => setTab("ask")}>
+              Вопрос по плану
+            </button>
+          </div>
+
+          {tab === "ask" ? (
+            <div className="stack-sm" style={{ gap: 10 }}>
+              <span className="hint">Луна — помощник по маршруту, не врач. Отвечает только про шаги вашего плана.</span>
+              <div className="stack-sm" style={{ gap: 10 }} aria-live="polite">
+                {chat.map((m, i) => (
+                  <div key={i} className="stack-sm" style={{ gap: 6 }}>
+                    <div className="ask-q">{m.q}</div>
+                    <div className={`ask-a ${m.a.source === "guard_danger" ? "crit" : ""}`}>
+                      <span>{m.a.answer}</span>
+                      {m.a.steps.map((s) =>
+                        s.step_id ? (
+                          <Link key={s.service_id} href={`/parent/cases/${caseId}#step-${s.step_id}`} className="link-btn small" onClick={close}>
+                            Шаг: {s.title}
+                          </Link>
+                        ) : (
+                          <span key={s.service_id} className="hint">
+                            Услуга: {s.title}
+                          </span>
+                        ),
+                      )}
+                      {m.a.curator_notified && <span className="small text-ok">✓ Куратор уведомлён</span>}
+                      {m.a.ask_curator && !m.a.curator_notified && (
+                        askedCurator === m.q ? (
+                          <span className="small text-ok">✓ Вопрос передан куратору</span>
+                        ) : (
+                          <button className="btn btn-sm" disabled={busy} onClick={() => askCurator(m.q)}>
+                            Спросить куратора
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <label className="field">
+                <span className="hint">Ваш вопрос (до 300 символов)</span>
+                <textarea className="input" rows={2} maxLength={300} value={question} disabled={busy}
+                  placeholder="Например: какие документы нужны для ПМПК?"
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      ask();
+                    }
+                  }} />
+              </label>
+              <button className="btn btn-primary btn-sm" disabled={busy || !question.trim()} onClick={ask}>
+                {busy ? "Луна думает…" : "Спросить"}
+              </button>
+            </div>
+          ) : !result ? (
             <>
               <span className="urgent-label">Что случилось?</span>
               <label className="field">
@@ -172,7 +271,7 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
             </div>
           )}
           {error && <div className="alert alert-error">{error}</div>}
-          <span className="hint">Это не замена врача. Ответы в этой панели — готовые тексты, без AI.</span>
+          {tab === "urgent" && <span className="hint">Это не замена врача. Ответы на срочные ситуации — готовые тексты, без AI.</span>}
         </div>
       )}
     </>

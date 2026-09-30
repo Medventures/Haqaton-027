@@ -155,6 +155,15 @@ export interface AppNotification {
   kind_label: string | null;
 }
 
+export interface AskResult {
+  answer: string;
+  source: "llm" | "fallback" | "guard_danger" | "guard_medical";
+  steps: { service_id: string; title: string; step_id: number | null }[];
+  needs_curator: boolean;
+  ask_curator: boolean;
+  curator_notified: boolean;
+}
+
 export type UrgentKind = "safety" | "regression" | "benefit_stopped" | "need_help";
 
 export interface UrgentOptions {

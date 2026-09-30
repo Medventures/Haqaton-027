@@ -1993,3 +1993,29 @@ textarea.input {
   background: var(--surface-2);
   border: 1px solid var(--line-soft);
 }
+
+/* вопрос по плану */
+.ask-q {
+  align-self: flex-end;
+  max-width: 90%;
+  padding: 8px 12px;
+  border-radius: 12px 12px 4px 12px;
+  background: var(--accent-soft);
+  font-size: 14px;
+}
+.ask-a {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px 12px 12px 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  font-size: 14px;
+}
+.ask-a.crit {
+  background: var(--crit-soft);
+  border-color: var(--crit-line);
+  color: var(--crit-text);
+}
