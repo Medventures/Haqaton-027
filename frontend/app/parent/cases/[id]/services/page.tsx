@@ -90,7 +90,6 @@ export default function ServicesPage() {
           <article key={p.id} className="card stack-sm provider-card">
             <div className="row gap-xs wrap">
               <Chip tone="accent">{p.type_label}</Chip>
-              {p.is_demo && <Chip tone="muted">Демо-данные</Chip>}
             </div>
             <b>{p.name}</b>
             <span className="small muted">{p.city}</span>

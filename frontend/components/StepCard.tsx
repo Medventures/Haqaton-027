@@ -164,10 +164,7 @@ export function StepCard({ step, role, editable, onPatch, onDelete, onToggleDoc,
                   {step.where_to_get.map((p) => (
                     <li key={p.id}>
                       <b>{p.name}</b>
-                      <span className="hint">
-                        {p.type_label}
-                        {p.is_demo ? " · демо-данные" : ""}
-                      </span>
+                      <span className="hint">{p.type_label}</span>
                     </li>
                   ))}
                 </ul>
