@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { AgencyBadge, StageBadge } from "@/components/Badges";
 import { api } from "@/lib/api";
 import { useApp, usePageMeta } from "@/lib/app-context";
-import { LANGUAGE_LABEL, STATUS_LABEL, ageText, fmtDate } from "@/lib/format";
+import { LANGUAGE_LABEL, STATUS_LABEL, ageText, fmtDate, lockHint, overdueLabel } from "@/lib/format";
 import type { Domain, Handoff, HandoffStep } from "@/lib/types";
 
 function StepTable({ steps, showOverdue }: { steps: HandoffStep[]; showOverdue?: boolean }) {
@@ -32,9 +32,9 @@ function StepTable({ steps, showOverdue }: { steps: HandoffStep[]; showOverdue?:
             <td className="nowrap">{fmtDate(s.completed_at ?? s.due_date)}</td>
             <td>
               {showOverdue ? (
-                <b className="text-danger">{s.days_overdue} дн.</b>
+                <b className="text-danger">{overdueLabel(s.days_overdue)}</b>
               ) : s.status === "locked" ? (
-                <span className="small">🔒 {s.unlock_hint || STATUS_LABEL.locked}</span>
+                <span className="small">🔒 {s.unlock_hint ? lockHint(s.unlock_hint) : STATUS_LABEL.locked}</span>
               ) : (
                 STATUS_LABEL[s.status]
               )}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AgencyBadge, BlockerBadge, DomainBadge, PriorityBadge, StepStatusChip } from "./Badges";
 import { HelpPanel } from "./HelpPanel";
-import { BLOCKER_LABEL, PRIORITY_LABEL, STATUS_LABEL, fmtDate } from "@/lib/format";
+import { BLOCKER_LABEL, PRIORITY_LABEL, STATUS_LABEL, fmtDate, lockHint } from "@/lib/format";
 import type { Blocker, Letter, Priority, Role, Step, StepStatus } from "@/lib/types";
 
 export interface StepPatch {
@@ -92,8 +92,8 @@ export function StepCard({ step, role, editable, onPatch, onDelete, onToggleDoc,
           </div>
           {locked && step.unlock_hint && (
             <div className="note-box lock">
-              🔒 Откроется {step.unlock_hint}
-              {step.unlock_date ? ` (с ${fmtDate(step.unlock_date)})` : ""}.
+              🔒 {lockHint(step.unlock_hint)}
+              {step.unlock_date && !step.unlock_hint.includes(fmtDate(step.unlock_date)) ? ` (с ${fmtDate(step.unlock_date)})` : ""}.
             </div>
           )}
           {step.curator_note && !isCurator && <div className="note-box ok">Куратор: {step.curator_note}</div>}

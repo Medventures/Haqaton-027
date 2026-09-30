@@ -58,7 +58,7 @@ function SummaryView({ summary, busy, onConfirm }: { summary: Summary; busy: boo
         {line.options.map((o) => {
           const on = line.type === "multi" ? arr.includes(o) : cur === o;
           return (
-            <button key={o} className={`chip ${on ? "on" : ""}`}
+            <button key={o} className={`chip ${on ? "on" : ""}`} aria-label={o} aria-pressed={on}
               onClick={() => setEdits({
                 ...edits,
                 [line.slot]: line.type === "multi" ? (on ? arr.filter((x) => x !== o) : [...arr, o]) : o,
@@ -338,7 +338,8 @@ export default function InterviewPage() {
                 {item.options.map((o) => {
                   const on = item.type === "multi" && multi.includes(o);
                   return (
-                    <button key={o} className={`option ${on ? "on" : ""}`} disabled={busy}
+                    <button key={o} className={`option ${on ? "on" : ""}`} disabled={busy} aria-label={o}
+                      aria-pressed={item.type === "multi" ? on : undefined}
                       onClick={() => (item.type === "choice" ? send(o) : setMulti((m) => (m.includes(o) ? m.filter((x) => x !== o) : [...m, o])))}>
                       <span className={`option-box ${item.type === "multi" ? "square" : ""}`}>{on && <Check />}</span>
                       <span>{o}</span>

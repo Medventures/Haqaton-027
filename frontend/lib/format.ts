@@ -94,6 +94,18 @@ export function daysWord(n: number): string {
   return plural(n, "день", "дня", "дней");
 }
 
+/** Overdue label: past a year the exact number of days reads like an error, so it is shown as «более года». */
+export function overdueLabel(n: number): string {
+  return n > 365 ? "более года" : `${n} ${daysWord(n)}`;
+}
+
+/** Lock hint from the server is a full sentence («Откроется …» / «Станет срочным …»); old fragments get the prefix. */
+export function lockHint(hint: string): string {
+  const h = hint.trim();
+  if (/^(откроется|станет)/i.test(h)) return h[0].toUpperCase() + h.slice(1);
+  return `Откроется ${h}`;
+}
+
 export function daysUntil(iso: string, today: string): number {
   return Math.round((Date.parse(iso) - Date.parse(today)) / 86_400_000);
 }

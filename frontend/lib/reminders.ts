@@ -1,4 +1,4 @@
-import { daysWord, fmtDate } from "./format";
+import { daysWord, fmtDate, lockHint, overdueLabel } from "./format";
 import type { CaseView } from "./types";
 
 export interface Reminder {
@@ -26,7 +26,7 @@ export function remindersFor(c: CaseView): Reminder[] {
       out.push({
         key: `o${s.id}`,
         tone: "crit",
-        tag: `Просрочено · ${s.days_overdue} ${daysWord(s.days_overdue)}`,
+        tag: `Просрочено · ${overdueLabel(s.days_overdue)}`,
         text: s.title,
         meta: `Срок был ${fmtDate(s.due_date)}. Не хватает документов: ${s.docs_missing}. Куратор уже видит этот шаг.`,
         stepId: s.id,
@@ -52,7 +52,7 @@ export function remindersFor(c: CaseView): Reminder[] {
         tone: "muted",
         tag: "Предстоящий шаг",
         text: s.title,
-        meta: `Откроется ${s.unlock_hint}.`,
+        meta: s.unlock_hint ? `${lockHint(s.unlock_hint)}.` : "Откроется после предыдущих шагов.",
         stepId: s.id,
       });
   }

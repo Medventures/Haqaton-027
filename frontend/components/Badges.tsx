@@ -1,4 +1,4 @@
-import { BLOCKER_LABEL, CASE_STATUS_LABEL, DOMAIN_LABEL, STAGE_LABEL, daysWord } from "@/lib/format";
+import { BLOCKER_LABEL, CASE_STATUS_LABEL, DOMAIN_LABEL, STAGE_LABEL, daysWord, overdueLabel } from "@/lib/format";
 import type { Agency, Blocker, CaseStatus, Domain, Priority, Stage, Step } from "@/lib/types";
 
 export type Tone = "ok" | "warn" | "crit" | "info" | "muted" | "accent" | "urgent";
@@ -41,17 +41,17 @@ export function StepStatusChip({ step, forParent }: { step: Step; forParent?: bo
     case "escalated":
       return forParent ? (
         <Chip tone="crit">
-          Просрочено · {d} {daysWord(d)}
+          Просрочено · {overdueLabel(d)}
         </Chip>
       ) : (
         <Chip tone="urgent">
-          Эскалация · {d} {daysWord(d)}
+          Эскалация · {overdueLabel(d)}
         </Chip>
       );
     case "overdue":
       return (
         <Chip tone="crit">
-          Просрочено · {d} {daysWord(d)}
+          Просрочено · {overdueLabel(d)}
         </Chip>
       );
     case "due_soon":
