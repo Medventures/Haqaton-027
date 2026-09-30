@@ -60,19 +60,37 @@ def case_id_by_scenario(client, key):
     return next(c["id"] for c in cases if c["scenario"] == key)
 
 
-def run_interview(client, case_id, scenario_key):
+def run_interview(client, case_id, scenario_key, confirm=True):
+    """Проходит интервью ответами из сида. Возвращает (последний ответ API, список id заданных вопросов)."""
     from app.catalog import SCENARIOS
 
     sc = SCENARIOS[scenario_key]
     r = client.post(f"/api/cases/{case_id}/interview/next", json={}, headers=PARENT).json()
-    asked = 0
+    asked = []
     while not r["done"]:
-        q = r["item"]
-        asked += 1
-        ans = sc["answers"].get(q["topic"], sc["follow_up_answer"])
-        r = client.post(f"/api/cases/{case_id}/interview/next", json={"answer": ans}, headers=PARENT).json()
-        assert asked <= 12
+        qid = r["question_id"]
+        asked.append(qid)
+        assert len(asked) <= 12
+        if qid == "12":
+            if confirm:
+                client.post(f"/api/cases/{case_id}/interview/confirm", json={}, headers=PARENT)
+            break
+        r = client.post(f"/api/cases/{case_id}/interview/next", json={"answer": sc["answers"][qid]}, headers=PARENT).json()
     return r, asked
 
 
-__all__ = ["CURATOR", "PARENT", "FakeLLM", "case_id_by_scenario", "run_interview", "db"]
+def ready_plan(client, key, confirm=True):
+    """Интервью + сводка + план (+ подтверждение куратором) для кейса из сида."""
+    cid = case_id_by_scenario(client, key)
+    run_interview(client, cid, key)
+    assert client.post(f"/api/cases/{cid}/plan/generate", headers=PARENT).status_code == 200
+    if confirm:
+        assert client.post(f"/api/cases/{cid}/plan/confirm", headers=CURATOR).status_code == 200
+    return cid
+
+
+def steps_of(client, cid, role=None):
+    return {s["service_id"]: s for s in client.get(f"/api/cases/{cid}", headers=role or CURATOR).json()["steps"]}
+
+
+__all__ = ["CURATOR", "PARENT", "FakeLLM", "case_id_by_scenario", "run_interview", "ready_plan", "steps_of", "db"]

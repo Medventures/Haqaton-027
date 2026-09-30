@@ -43,7 +43,7 @@ reset-db:
 	@echo "База удалена. Запустите make run — она пересоздастся из seed (2 синтетических кейса)."
 
 eval:
-	cd backend && .venv/bin/python -m scripts.eval_plan --scenario A --runs 10
+	cd backend && .venv/bin/python -m scripts.eval_plan --scenario 2 --runs 10
 
 check-secrets:
 	@if git log -p --all | grep -E 'sk-[A-Za-z0-9_-]{20,}'; then echo "НАЙДЕН КЛЮЧ В ИСТОРИИ — отзовите его в OpenAI"; exit 1; else echo "OK: ключей в истории git нет"; fi

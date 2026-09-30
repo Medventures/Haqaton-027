@@ -43,19 +43,25 @@ MAX_QUESTIONS = 12
 MAX_EXPLANATION_LEN = 300
 # Эскалация: просрочка больше N дней.
 ESCALATION_AFTER_DAYS = int(os.getenv("ESCALATION_AFTER_DAYS", os.getenv("ESCALATION_DAYS", "3")))
+# Срок ПМПК после заключения врача (значение подтверждает Асем).
+PMPK_DUE_AFTER_DIAGNOSIS_DAYS = int(os.getenv("PMPK_DUE_AFTER_DIAGNOSIS_DAYS", "365"))
+# Переосвидетельствование МСЭ: за сколько дней до окончания справки шаг становится срочным / виден как предстоящий.
+MSE_LEAD_DAYS = int(os.getenv("MSE_LEAD_DAYS", "30"))
+MSE_PREVIEW_DAYS = int(os.getenv("MSE_PREVIEW_DAYS", "90"))
+# «Скоро срок»: 0 ≤ days_to_due ≤ N (для услуг с due_soon_days — своё значение).
+DUE_SOON_DAYS = int(os.getenv("DUE_SOON_DAYS", "7"))
+# Дата демо по умолчанию: от неё посчитаны даты синтетических кейсов.
+DEMO_SEED_TODAY = os.getenv("DEMO_SEED_TODAY", "2026-09-30")
 
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
 
-# Стоп-слова (регулярные выражения, без учёта регистра). Объяснение с совпадением
+# Стоп-слова (регулярные выражения, без учёта регистра). «РАС» и «аутизм» не входят — это предметная область.
+# Объяснение с совпадением
 # заменяется шаблонным; вопрос интервью — шаблонным вопросом.
 STOP_PATTERNS = [
     # диагнозы и медицинские ярлыки
     r"диагноз",
     r"диагностир",
-    r"\bаутизм",
-    r"\bаутичн",
-    r"\bрас\b",
-    r"расстройств",
     r"синдром",
     r"\bf\s?\d{2}",
     r"патолог",
