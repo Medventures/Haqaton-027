@@ -99,7 +99,22 @@ export interface Letter {
   sent: boolean;
 }
 
+export type ProviderType = "club" | "speech_therapist" | "defectologist" | "center";
+
+export interface Provider {
+  id: number;
+  name: string;
+  type: ProviderType;
+  type_label: string;
+  city: string;
+  service_ids: string[];
+  description: string;
+  contact: string | null;
+  is_demo: boolean;
+}
+
 export interface Step {
+  where_to_get?: Provider[];
   id: number;
   case_id: number;
   position: number;

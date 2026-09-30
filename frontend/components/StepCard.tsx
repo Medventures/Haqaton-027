@@ -148,6 +148,23 @@ export function StepCard({ step, role, editable, onPatch, onDelete, onToggleDoc,
               </ul>
               <span className="hint">Срок: {fmtDate(step.due_date)} — {BASIS_LABEL[step.due_basis]}</span>
             </div>
+            {!!step.where_to_get?.length && (
+              <div>
+                <span className="detail-label">Где получить</span>
+                <ul className="where-list">
+                  {step.where_to_get.map((p) => (
+                    <li key={p.id}>
+                      <b>{p.name}</b>
+                      <span className="hint">
+                        {p.type_label}
+                        {p.is_demo ? " · демо-данные" : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <span className="hint">Справочник, не рекомендация. Выбор — вместе с врачом или по заключению ПМПК.</span>
+              </div>
+            )}
           </div>
 
           {editable && !isCurator && (

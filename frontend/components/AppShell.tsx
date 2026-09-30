@@ -15,7 +15,7 @@ const STAGES: Stage[] = ["early", "correction", "socialization"];
 const ONBOARDING = ["Вход через eGov", "Согласие", "Документы из госсистем", "Вопросы", "План на проверке"];
 const STAGE_AGES: Record<Stage, string> = { early: "до 3 лет", correction: "3–7 лет", socialization: "7–18 лет" };
 
-function Icon({ name }: { name: "plan" | "bell" | "doc" | "chat" | "list" | "case" | "handoff" | "home" }) {
+function Icon({ name }: { name: "plan" | "bell" | "doc" | "chat" | "list" | "case" | "handoff" | "home" | "store" }) {
   const p = {
     plan: (
       <>
@@ -55,6 +55,13 @@ function Icon({ name }: { name: "plan" | "bell" | "doc" | "chat" | "list" | "cas
       </>
     ),
     home: <path d="M4 11l8-7 8 7v9H4z" />,
+    store: (
+      <>
+        <path d="M4 9l1.5-5h13L20 9" />
+        <path d="M4 9h16v11H4z" />
+        <path d="M10 20v-5h4v5" />
+      </>
+    ),
   }[name];
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -168,6 +175,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <NavLink href={`/parent/cases/${c.id}/reminders`} icon="bell" label="Напоминания"
                 active={is(`/parent/cases/${c.id}/reminders`)} badge={parentReminders} urgent={c.alert || c.overdue > 0} />
               <NavLink href={`/parent/cases/${c.id}/documents`} icon="doc" label="Документы" active={is(`/parent/cases/${c.id}/documents`)} />
+              <NavLink href={`/parent/cases/${c.id}/services`} icon="store" label="Услуги" active={is(`/parent/cases/${c.id}/services`)} />
               {!c.summary_confirmed && (
                 <NavLink href={`/parent/cases/${c.id}/interview`} icon="chat" label="Интервью" active={is(`/parent/cases/${c.id}/interview`)} />
               )}
