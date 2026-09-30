@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from . import ask as ak
-from . import config, db, gov, guards, i18n, llm
+from . import config, db, faq, gov, guards, i18n, llm
 from . import urgent_texts as ut
 from . import interview as iv
 from .catalog import (
@@ -878,6 +878,24 @@ def urgent_resolve(case_id: int, role: Role = Depends(require_curator)):
         conn.execute("UPDATE notifications SET read = 1 WHERE case_id = ? AND type = 'red_flag'", (case_id,))
         db.audit(conn, case_id, "urgent_resolved", role)
     return {"ok": True, "alert": False}
+
+
+# ---------- FAQ (без LLM) ----------
+
+
+@app.get("/api/faq")
+def get_faq(case_id: int | None = None, role: Role = Depends(get_role)):
+    """General answers plus per-step answers built from the catalog and this case's steps."""
+    with db.tx() as conn:
+        services = db.load_services(conn)
+        if case_id is None:
+            return faq.build([], services)
+        c = load_case(conn, case_id)
+        today = db.get_today(conn)
+        steps = refresh_steps(conn, c, services, today)
+    if role == "parent" and c["status"] != "confirmed":
+        steps = []
+    return faq.build(steps, services)
 
 
 # ---------- вопрос по плану ----------
