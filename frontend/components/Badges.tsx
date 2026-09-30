@@ -1,5 +1,6 @@
 import { BLOCKER_LABEL, CASE_STATUS_LABEL, DOMAIN_LABEL, STAGE_LABEL, daysWord, overdueLabel } from "@/lib/format";
 import type { Agency, Blocker, CaseStatus, Domain, Priority, Stage, Step } from "@/lib/types";
+import { Ico } from "./Icons";
 
 export type Tone = "ok" | "warn" | "crit" | "info" | "muted" | "accent" | "urgent";
 
@@ -37,7 +38,7 @@ export function StepStatusChip({ step, forParent }: { step: Step; forParent?: bo
     case "done":
       return <Chip tone="ok">Выполнено</Chip>;
     case "locked":
-      return <Chip tone="muted">🔒 Заблокирован</Chip>;
+      return <Chip tone="muted"><Ico name="lock" size={12} /> Заблокирован</Chip>;
     case "escalated":
       return forParent ? (
         <Chip tone="crit">
@@ -80,9 +81,9 @@ export function EscalatedBadge() {
 }
 
 export function BlockerBadge({ blocker }: { blocker: Blocker }) {
-  return <Chip tone="warn">⛔ {BLOCKER_LABEL[blocker]}</Chip>;
+  return <Chip tone="warn"><Ico name="ban" size={12} /> {BLOCKER_LABEL[blocker]}</Chip>;
 }
 
 export function AlertBadge() {
-  return <Chip tone="urgent">⚠ Красный флаг</Chip>;
+  return <Chip tone="urgent"><Ico name="alert" size={12} /> Красный флаг</Chip>;
 }

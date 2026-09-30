@@ -7,6 +7,7 @@ import { CaseStatusBadge, StageBadge } from "@/components/Badges";
 import { api } from "@/lib/api";
 import { useApp, usePageMeta } from "@/lib/app-context";
 import type { CaseSummary, CaseView, DocType, Intake, Language } from "@/lib/types";
+import { Ico } from "@/components/Icons";
 
 const CITIES = ["Алматы", "Астана", "Шымкент", "Караганда", "Актобе", "Павлодар", "Өскемен", "Кызылорда", "Петропавловск", "Другой город"];
 
@@ -258,7 +259,7 @@ export default function ParentHome() {
               return (
                 <button type="button" key={d.id} className={`chip ${on ? "on" : ""}`}
                   onClick={() => set("documents", on ? intake.documents.filter((x) => x !== d.id) : [...intake.documents, d.id])}>
-                  {on ? "✓ " : "+ "}
+                  <Ico name={on ? "check" : "plus"} size={12} /> 
                   {d.name}
                 </button>
               );

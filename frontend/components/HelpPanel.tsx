@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 import type { Help, Role } from "@/lib/types";
 import { LetterDraft } from "./StepCard";
+import { Ico } from "./Icons";
 
 /** «Помощь семье»: чек-лист недостающих документов, что сделать, блокеры и шаблон сообщения (всё собирает код). */
 export function HelpPanel({ stepId, role, version }: { stepId: number; role: Role; version?: number }) {
@@ -49,14 +50,14 @@ export function HelpPanel({ stepId, role, version }: { stepId: number; role: Rol
             <ul className="checklist">
               {help.checklist.map((d) => (
                 <li key={d.doc_type}>
-                  ○ {d.name}
+                  <Ico name="circle" size={12} /> {d.name}
                   {d.expired && <span className="pill pill-warn pill-xs">истёк срок</span>}
                   {d.note && <div className="muted small">{d.note}</div>}
                 </li>
               ))}
               {help.notes.map((n) => (
                 <li key={n} className="muted">
-                  • {n}
+                  <Ico name="bullet" size={12} /> {n}
                 </li>
               ))}
             </ul>

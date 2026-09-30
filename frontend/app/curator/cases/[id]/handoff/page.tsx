@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { useApp, usePageMeta } from "@/lib/app-context";
 import { LANGUAGE_LABEL, STATUS_LABEL, ageText, fmtDate, lockHint, overdueLabel } from "@/lib/format";
 import type { Domain, Handoff, HandoffStep } from "@/lib/types";
+import { Ico } from "@/components/Icons";
 
 function StepTable({ steps, showOverdue }: { steps: HandoffStep[]; showOverdue?: boolean }) {
   if (!steps.length) return <p className="muted small">Нет.</p>;
@@ -34,7 +35,7 @@ function StepTable({ steps, showOverdue }: { steps: HandoffStep[]; showOverdue?:
               {showOverdue ? (
                 <b className="text-danger">{overdueLabel(s.days_overdue)}</b>
               ) : s.status === "locked" ? (
-                <span className="small">🔒 {s.unlock_hint ? lockHint(s.unlock_hint) : STATUS_LABEL.locked}</span>
+                <span className="small with-ico"><Ico name="lock" /> {s.unlock_hint ? lockHint(s.unlock_hint) : STATUS_LABEL.locked}</span>
               ) : (
                 STATUS_LABEL[s.status]
               )}
@@ -78,7 +79,7 @@ export default function HandoffPage() {
     return (
       <div className="stack">
         <Link href={`/curator/cases/${id}`} className="muted small">
-          ← К делу
+          <Ico name="back" /> К делу
         </Link>
         <div className="alert alert-error">{error}</div>
       </div>
@@ -91,7 +92,7 @@ export default function HandoffPage() {
     <div className="stack handoff">
       <div className="row between wrap gap-sm no-print">
         <Link href={`/curator/cases/${id}`} className="muted small">
-          ← К делу
+          <Ico name="back" /> К делу
         </Link>
         <button className="btn btn-primary" onClick={exportPdf}>
           Сохранить в PDF
@@ -193,7 +194,7 @@ export default function HandoffPage() {
               <ul className="doc-summary">
                 {h.documents.have.map((d) => (
                   <li key={d} className="have">
-                    ✓ {d}
+                    <Ico name="check" className="text-ok" /> {d}
                   </li>
                 ))}
               </ul>
@@ -202,7 +203,7 @@ export default function HandoffPage() {
               <div className="muted small">Нет ({h.documents.missing.length})</div>
               <ul className="doc-summary">
                 {h.documents.missing.map((d) => (
-                  <li key={d}>○ {d}</li>
+                  <li key={d}><Ico name="circle" /> {d}</li>
                 ))}
               </ul>
             </div>

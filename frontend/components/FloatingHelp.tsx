@@ -7,6 +7,7 @@ import { FaqTab } from "./FaqTab";
 import { useApp } from "@/lib/app-context";
 import { fmtDate } from "@/lib/format";
 import type { AskResult, UrgentKind, UrgentOptions, UrgentResult } from "@/lib/types";
+import { Ico } from "./Icons";
 
 const INDICATOR_LABEL: Record<string, string> = {
   overdue: "просрочен",
@@ -156,7 +157,7 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
               Помощь
             </h2>
             <button className="icon-btn" aria-label="Закрыть" onClick={close}>
-              ✕
+              <Ico name="close" size={16} />
             </button>
           </div>
 
@@ -208,10 +209,10 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
                           </span>
                         ),
                       )}
-                      {m.a.curator_notified && <span className="small text-ok">✓ Куратор уведомлён</span>}
+                      {m.a.curator_notified && <span className="small text-ok with-ico"><Ico name="check" /> Куратор уведомлён</span>}
                       {m.a.ask_curator && !m.a.curator_notified && (
                         askedCurator === m.q ? (
-                          <span className="small text-ok">✓ Вопрос передан куратору</span>
+                          <span className="small text-ok with-ico"><Ico name="check" /> Вопрос передан куратору</span>
                         ) : (
                           <button className="btn btn-sm" disabled={busy} onClick={() => askCurator(m.q)}>
                             Спросить куратора
@@ -235,7 +236,7 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
                   }} />
               </label>
               <button className="btn btn-primary btn-sm" disabled={busy || !question.trim()} onClick={ask}>
-                {busy ? "Луна думает…" : "Спросить"}
+                {busy ? "AqylRoute думает…" : "Спросить"}
               </button>
             </div>
             </FaqTab>
@@ -259,7 +260,7 @@ export function FloatingHelp({ caseId }: { caseId: number }) {
           ) : (
             <div className="stack-sm" style={{ gap: 12 }} aria-live="polite">
               <p className="urgent-text">{result.text}</p>
-              {result.curator_notified && <div className="note-box ok">✓ Куратор уведомлён</div>}
+              {result.curator_notified && <div className="note-box ok with-ico"><Ico name="check" /> Куратор уведомлён</div>}
               {result.nearest_step && (
                 <div className="urgent-step">
                   <span className="hint">Ближайший шаг плана</span>

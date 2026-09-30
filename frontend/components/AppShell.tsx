@@ -10,6 +10,7 @@ import { remindersFor } from "@/lib/reminders";
 import { FloatingHelp } from "./FloatingHelp";
 import { Translator } from "./Translator";
 import type { CaseView, Role, Stage } from "@/lib/types";
+import { Ico } from "./Icons";
 
 const STAGES: Stage[] = ["early", "correction", "socialization"];
 const ONBOARDING = ["Вход через eGov", "Согласие", "Документы из госсистем", "Вопросы", "План на проверке"];
@@ -207,7 +208,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="side-label">Этапы</span>
             {ONBOARDING.map((label, i) => (
               <div key={label} className={`stage-row ${i < onboardingIdx ? "past" : i === onboardingIdx ? "current" : ""}`}>
-                <span className="stage-dot">{i < onboardingIdx ? "✓" : i + 1}</span>
+                <span className="stage-dot">{i < onboardingIdx ? <Ico name="check" size={13} /> : i + 1}</span>
                 <span>{label}</span>
               </div>
             ))}
@@ -219,7 +220,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="side-label">Этапы маршрута</span>
             {STAGES.map((s, i) => (
               <div key={s} className={`stage-row ${i < stageIdx ? "past" : i === stageIdx ? "current" : ""}`}>
-                <span className="stage-dot">{i < stageIdx ? "✓" : i + 1}</span>
+                <span className="stage-dot">{i < stageIdx ? <Ico name="check" size={13} /> : i + 1}</span>
                 <span>
                   {STAGE_LABEL[s]}
                   <span className="hint" style={{ display: "block" }}>
