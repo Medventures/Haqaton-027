@@ -4,11 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AlertBadge, CaseStatusBadge, StageBadge } from "@/components/Badges";
-import { DemoDateControl } from "@/components/DemoDateControl";
 import { DocFolder } from "@/components/DocFolder";
 import { StepCard, type StepPatch } from "@/components/StepCard";
 import { api } from "@/lib/api";
-import { useApp } from "@/lib/app-context";
+import { useApp, usePageMeta } from "@/lib/app-context";
 import { DOMAIN_LABEL, LANGUAGE_LABEL, PRIORITY_LABEL, SOURCE_LABEL, answerText, auditLabel, fmtDate, fmtDateTime } from "@/lib/format";
 import type { CaseView, Intake, Priority, Service } from "@/lib/types";
 
@@ -65,11 +64,13 @@ export default function CuratorCasePage() {
     }
   }, [id]);
 
+  usePageMeta(c ? c.child_alias : "Карточка дела", c ? `Карточка дела · ${c.age_text}, ${c.city}` : undefined);
+
   useEffect(() => {
     if (!ready) return;
     load();
     api<{ services: Service[] }>("curator", "/services").then((r) => setServices(r.services)).catch(() => {});
-  }, [ready, load]);
+  }, [ready, load, settings?.today]);
 
   async function run(label: string, fn: () => Promise<unknown>) {
     setBusy(label);
@@ -123,21 +124,18 @@ export default function CuratorCasePage() {
   const addable = services.filter((s) => !inPlan.has(s.id));
 
   return (
-    <div className="plan-layout">
+    <div className="two-col">
       <div className="stack">
-        <div>
-          <Link href="/curator" className="muted small">
-            ← Панель куратора
-          </Link>
-          <h1 className="h-page">
-            {c.child_alias} <CaseStatusBadge status={c.status} /> <StageBadge stage={c.stage} /> {c.alert && <AlertBadge />}
-          </h1>
-          <p className="muted small">
-            {c.age_text} (род. {fmtDate(c.birth_date)}), {c.city}, язык: {LANGUAGE_LABEL[c.language]} ·{" "}
-            {c.handling_mode === "curator" ? "ведёт куратор (есть препятствия у семьи)" : "ведёт система"}
+        <div className="stack-sm">
+          <div className="row gap-xs wrap">
+            <CaseStatusBadge status={c.status} /> <StageBadge stage={c.stage} /> {c.alert && <AlertBadge />}
+          </div>
+          <p className="small muted">
+            Родился {fmtDate(c.birth_date)} · {c.city} · язык: {LANGUAGE_LABEL[c.language]} ·{" "}
+            {c.handling_mode === "curator" ? "ведёт куратор (у семьи есть препятствия)" : "ведёт система"}
           </p>
           {c.red_flag_text && (
-            <div className="alert alert-error">
+            <div className="alert alert-crit">
               ⚠ Красный флаг в интервью. Семье показан текст: «{c.red_flag_text}» Свяжитесь с семьёй и врачом.
             </div>
           )}
@@ -205,7 +203,6 @@ export default function CuratorCasePage() {
           </div>
         )}
 
-        {c.status === "confirmed" && <DemoDateControl onChange={load} />}
 
         {meta && (
           <details className="card card-tight">
@@ -281,7 +278,7 @@ export default function CuratorCasePage() {
         )}
       </div>
 
-      <aside className="stack">
+      <aside className="side">
         <div className="card card-tight">
           <h3 className="h-small">Анкета Q0</h3>
           <IntakeFacts i={c.intake} />

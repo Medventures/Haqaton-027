@@ -2,20 +2,19 @@
 
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { AgencyBadge, AlertBadge, BlockerBadge, CaseStatusBadge, EscalatedBadge, PriorityBadge, StageBadge } from "@/components/Badges";
-import { DemoDateControl } from "@/components/DemoDateControl";
+import { AgencyBadge, AlertBadge, Chip, type Tone, BlockerBadge, CaseStatusBadge, EscalatedBadge, PriorityBadge, StageBadge } from "@/components/Badges";
 import { HelpPanel } from "@/components/HelpPanel";
 import { api } from "@/lib/api";
-import { useApp } from "@/lib/app-context";
+import { useApp, usePageMeta } from "@/lib/app-context";
 import { STATUS_LABEL, fmtDate, fmtDateTime } from "@/lib/format";
 import type { AppNotification, CaseSummary, OverdueResponse, StepStatus } from "@/lib/types";
 
-const NOTIF_ICON: Record<AppNotification["type"], string> = {
-  escalation: "🔴",
-  overdue: "🟥",
-  due_soon: "🟧",
-  unlocked: "🔓",
-  red_flag: "⚠️",
+const NOTIF: Record<AppNotification["type"], [string, Tone]> = {
+  escalation: ["Эскалация", "urgent"],
+  overdue: ["Просрочено", "crit"],
+  due_soon: ["Скоро срок", "warn"],
+  unlocked: ["Шаг открыт", "ok"],
+  red_flag: ["Красный флаг", "urgent"],
 };
 
 export default function CuratorDashboard() {
@@ -26,6 +25,7 @@ export default function CuratorDashboard() {
   const [openHelp, setOpenHelp] = useState<number | null>(null);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  usePageMeta("Дела и сроки", "Все семьи: проверка планов, просрочки, эскалации");
 
   useEffect(() => {
     if (ready && role !== "curator") setRole("curator");
@@ -50,7 +50,7 @@ export default function CuratorDashboard() {
 
   useEffect(() => {
     if (ready) load();
-  }, [ready, load]);
+  }, [ready, load, settings?.today]);
 
   async function setStatus(stepId: number, status: StepStatus) {
     try {
@@ -77,8 +77,7 @@ export default function CuratorDashboard() {
 
   return (
     <div className="stack-lg">
-      <div className="row between wrap gap-sm">
-        <h1 className="h-page">Панель куратора</h1>
+      <div className="row wrap gap-sm" style={{ justifyContent: "flex-end" }}>
         {settings?.demo_mode && (
           <button className="btn btn-ghost btn-sm" onClick={resetDemo}>
             Сбросить демо
@@ -86,29 +85,28 @@ export default function CuratorDashboard() {
         )}
       </div>
 
-      <DemoDateControl onChange={load} />
       {error && <div className="alert alert-error">{error}</div>}
 
-      <section className="kpis">
-        <div className={`kpi ${alerts ? "kpi-danger" : ""}`}>
-          <div className="stat-value">{alerts}</div>
-          <div className="muted small">красных флагов</div>
+      <section className="stats">
+        <div className={`stat ${alerts ? "crit" : ""}`}>
+          <b>{alerts}</b>
+          <span>красных флагов</span>
         </div>
-        <div className={`kpi ${awaiting ? "kpi-warn" : ""}`}>
-          <div className="stat-value">{awaiting}</div>
-          <div className="muted small">планов ждут подтверждения</div>
+        <div className={`stat ${awaiting ? "warn" : ""}`}>
+          <b>{awaiting}</b>
+          <span>планов ждут подтверждения</span>
         </div>
-        <div className={`kpi ${overdue?.overdue_count ? "kpi-danger" : ""}`}>
-          <div className="stat-value">{overdue?.overdue_count ?? "—"}</div>
-          <div className="muted small">просрочено</div>
+        <div className={`stat ${overdue?.overdue_count ? "crit" : ""}`}>
+          <b>{overdue?.overdue_count ?? "—"}</b>
+          <span>просрочено</span>
         </div>
-        <div className={`kpi ${overdue?.escalated_count ? "kpi-danger" : ""}`}>
-          <div className="stat-value">{overdue?.escalated_count ?? "—"}</div>
-          <div className="muted small">эскалаций</div>
+        <div className={`stat ${overdue?.escalated_count ? "crit" : ""}`}>
+          <b>{overdue?.escalated_count ?? "—"}</b>
+          <span>эскалаций</span>
         </div>
-        <div className={`kpi ${overdue?.due_soon.length ? "kpi-warn" : ""}`}>
-          <div className="stat-value">{overdue?.due_soon.length ?? "—"}</div>
-          <div className="muted small">скоро срок</div>
+        <div className={`stat ${overdue?.due_soon.length ? "warn" : ""}`}>
+          <b>{overdue?.due_soon.length ?? "—"}</b>
+          <span>скоро срок</span>
         </div>
       </section>
 
@@ -127,10 +125,10 @@ export default function CuratorDashboard() {
                     <div className="row gap-xs wrap mt-xs">
                       <StageBadge stage={c.stage} />
                       {!!c.escalated && <EscalatedBadge />}
-                      {!!c.overdue && <span className="badge ind-overdue">просрочено: {c.overdue}</span>}
-                      {!!c.due_soon && <span className="badge ind-due_soon">скоро срок: {c.due_soon}</span>}
-                      {!!c.steps_locked && <span className="badge status-locked">🔒 {c.steps_locked}</span>}
-                      {!!c.blockers && <span className="badge blocker">⛔ {c.blockers}</span>}
+                      {!!c.overdue && <span className="chip-s tone-crit">просрочено: {c.overdue}</span>}
+                      {!!c.due_soon && <span className="chip-s tone-warn">скоро срок: {c.due_soon}</span>}
+                      {!!c.steps_locked && <span className="chip-s tone-muted">🔒 {c.steps_locked}</span>}
+                      {!!c.blockers && <span className="chip-s tone-warn">⛔ {c.blockers}</span>}
                     </div>
                     <div className="muted small mt-xs">
                       {c.age_text}, {c.city} · {c.handling_mode === "curator" ? "ведёт куратор" : "ведёт система"}
@@ -149,7 +147,7 @@ export default function CuratorDashboard() {
         <section className="card">
           <div className="card-head">
             <h2>
-              Уведомления {notes && notes.unread > 0 && <span className="badge ind-escalated">{notes.unread}</span>}
+              Уведомления {notes && notes.unread > 0 && <span className="chip-s tone-urgent">{notes.unread}</span>}
             </h2>
             {notes && notes.unread > 0 && (
               <button className="link-btn small" onClick={() => markRead()}>
@@ -161,7 +159,7 @@ export default function CuratorDashboard() {
           <ul className="notif-list">
             {notes?.items.slice(0, 12).map((n) => (
               <li key={n.id} className={n.read ? "read" : ""}>
-                <span aria-hidden>{NOTIF_ICON[n.type]}</span>
+                <Chip tone={NOTIF[n.type][1]}>{NOTIF[n.type][0]}</Chip>
                 <div>
                   <Link href={`/curator/cases/${n.case_id}`} onClick={() => !n.read && markRead([n.id])}>
                     {n.message}
@@ -259,7 +257,7 @@ export default function CuratorDashboard() {
               <li key={s.id} className="case-row">
                 <div className="case-main">
                   <div className="case-title">
-                    {s.title} <span className="badge ind-due_soon">осталось {s.days_to_due} дн.</span>
+                    {s.title} <span className="chip-s tone-warn">осталось {s.days_to_due} дн.</span>
                   </div>
                   <div className="muted small">
                     {s.case_alias} · срок {fmtDate(s.due_date)} · не хватает документов: {s.docs_missing}

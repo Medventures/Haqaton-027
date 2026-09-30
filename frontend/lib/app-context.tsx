@@ -4,7 +4,16 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { api } from "./api";
 import type { Role, Settings } from "./types";
 
+export interface PageMeta {
+  title: string;
+  subtitle?: string;
+}
+
 interface AppCtx {
+  page: PageMeta;
+  setPage: (m: PageMeta) => void;
+  shellVersion: number;
+  refreshShell: () => void;
   role: Role;
   setRole: (r: Role) => void;
   ready: boolean;
@@ -32,6 +41,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [myCases, setMyCases] = useState<number[]>([]);
+  const [page, setPage] = useState<PageMeta>({ title: "AqylRoute AI" });
+  const [shellVersion, setShellVersion] = useState(0);
+  const refreshShell = useCallback(() => setShellVersion((v) => v + 1), []);
 
   useEffect(() => {
     const saved = readJson<string | null>(ROLE_KEY, null);
@@ -72,7 +84,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [refreshSettings]);
 
   return (
-    <Ctx.Provider value={{ role, setRole, ready, settings, refreshSettings, myCases, rememberCase }}>
+    <Ctx.Provider value={{ page, setPage, shellVersion, refreshShell, role, setRole, ready, settings, refreshSettings, myCases, rememberCase }}>
       {children}
     </Ctx.Provider>
   );
@@ -82,4 +94,12 @@ export function useApp(): AppCtx {
   const c = useContext(Ctx);
   if (!c) throw new Error("useApp outside AppProvider");
   return c;
+}
+
+/** Заголовок и подзаголовок экрана для шапки. */
+export function usePageMeta(title: string, subtitle?: string) {
+  const { setPage } = useApp();
+  useEffect(() => {
+    setPage({ title, subtitle });
+  }, [title, subtitle, setPage]);
 }

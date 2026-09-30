@@ -2,97 +2,124 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { StageBadge } from "@/components/Badges";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { useApp } from "@/lib/app-context";
-import { answerText } from "@/lib/format";
+import { useApp, usePageMeta } from "@/lib/app-context";
+import { answerText, fmtDate } from "@/lib/format";
 import type { CaseView, InterviewItem, NextResponse, Progress, Summary, SummaryLine } from "@/lib/types";
 
 type Phase = "loading" | "question" | "summary" | "generating" | "finished" | "error";
 
-function SummaryEditor({ summary, onConfirm, busy }: { summary: Summary; onConfirm: (c: Record<string, string | string[]>) => void; busy: boolean }) {
+const Check = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M5 12l5 5 9-10" />
+  </svg>
+);
+
+function Known({ c, items }: { c: CaseView; items: InterviewItem[] }) {
+  const { settings } = useApp();
+  const i = c.intake;
+  const rows: [string, string][] = [
+    ["Ребёнок", `${c.age_text}, ${c.city}`],
+    ["Заключение врача", i.has_conclusion ? `есть${i.conclusion_date ? `, от ${fmtDate(i.conclusion_date)}` : ""}` : "нет"],
+    ["ПМПК", { none: "нет", valid: "действует", expired: "истекла" }[i.pmpk_status]],
+    ["Справка МСЭ", i.mse_status === "none" ? "не было" : `${i.mse_status === "valid" ? "действует" : "истекла"}${i.mse_valid_until ? `, до ${fmtDate(i.mse_valid_until)}` : ""}`],
+    ["Документы на руках", i.documents.length ? `${i.documents.length} шт.` : "нет"],
+  ];
+  for (const it of items)
+    if (it.answer !== null && it.qid !== "12") rows.push([settings?.slot_labels[it.slot] ?? it.slot, answerText(it.answer)]);
+  return (
+    <div className="card" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <b>Что мы уже знаем</b>
+      <span className="hint" style={{ paddingBottom: 8 }}>
+        Из анкеты и ваших ответов
+      </span>
+      {rows.map(([k, v]) => (
+        <div key={k} className="known-row">
+          <span>{k}</span>
+          <span>{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SummaryView({ summary, busy, onConfirm }: { summary: Summary; busy: boolean; onConfirm: (c: Record<string, string | string[]>) => void }) {
   const [edits, setEdits] = useState<Record<string, string | string[]>>({});
   const [editing, setEditing] = useState<string | null>(null);
 
-  function renderEditor(line: SummaryLine) {
+  function editor(line: SummaryLine) {
     const cur = edits[line.slot] ?? line.raw;
-    if (line.type === "choice")
-      return (
-        <div className="chips">
-          {line.options.map((o) => (
-            <button key={o} className={`chip ${cur === o ? "on" : ""}`} onClick={() => setEdits({ ...edits, [line.slot]: o })}>
+    if (line.type === "text")
+      return <textarea className="input" rows={3} value={String(cur)} onChange={(e) => setEdits({ ...edits, [line.slot]: e.target.value })} />;
+    const arr = Array.isArray(cur) ? cur : [cur];
+    return (
+      <div className="chips">
+        {line.options.map((o) => {
+          const on = line.type === "multi" ? arr.includes(o) : cur === o;
+          return (
+            <button key={o} className={`chip ${on ? "on" : ""}`}
+              onClick={() => setEdits({
+                ...edits,
+                [line.slot]: line.type === "multi" ? (on ? arr.filter((x) => x !== o) : [...arr, o]) : o,
+              })}>
               {o}
             </button>
-          ))}
-        </div>
-      );
-    if (line.type === "multi") {
-      const arr = Array.isArray(cur) ? cur : [cur];
-      return (
-        <div className="chips">
-          {line.options.map((o) => {
-            const on = arr.includes(o);
-            return (
-              <button key={o} className={`chip ${on ? "on" : ""}`}
-                onClick={() => setEdits({ ...edits, [line.slot]: on ? arr.filter((x) => x !== o) : [...arr, o] })}>
-                {on ? "✓ " : "+ "}
-                {o}
-              </button>
-            );
-          })}
-        </div>
-      );
-    }
-    return (
-      <textarea className="input" rows={2} value={String(cur)} onChange={(e) => setEdits({ ...edits, [line.slot]: e.target.value })} />
+          );
+        })}
+      </div>
     );
   }
 
   return (
-    <div className="summary-card">
-      <p className="small">Проверьте, правильно ли я понял. Если что-то не так — нажмите «Поправить».</p>
-      <dl className="summary-list">
+    <div className="stack" style={{ maxWidth: 980 }}>
+      <div className="stack-sm">
+        <span className="eyebrow">Последний шаг интервью</span>
+        <h1 className="h-page">Правильно ли я понял?</h1>
+        <p className="muted">Проверьте сводку. По ней будет составлен план.</p>
+      </div>
+      {summary.red_flags.length > 0 && (
+        <div className="alert alert-crit" role="alert">
+          <b>Рекомендуем как можно скорее обратиться к врачу.</b> Куратор получит отметку «срочно».
+        </div>
+      )}
+      <div className="summary-grid">
         {summary.lines.map((line) => (
-          <div key={line.slot} className="summary-row">
-            <dt>{line.label}</dt>
-            <dd>
-              {editing === line.slot ? renderEditor(line) : answerText(edits[line.slot] ?? line.value)}
-              {edits[line.slot] !== undefined && editing !== line.slot && <span className="pill pill-muted pill-xs">исправлено</span>}
-            </dd>
-            <button className="link-btn small" onClick={() => setEditing(editing === line.slot ? null : line.slot)}>
-              {editing === line.slot ? "Готово" : "Поправить"}
-            </button>
+          <div key={line.slot} className="summary-item">
+            <span className="lbl">
+              {line.label}
+              <button className="link-btn" onClick={() => setEditing(editing === line.slot ? null : line.slot)}>
+                {editing === line.slot ? "Готово" : "Изменить"}
+              </button>
+            </span>
+            {editing === line.slot ? editor(line) : <span className="val">{answerText(edits[line.slot] ?? line.value)}</span>}
+            {edits[line.slot] !== undefined && editing !== line.slot && <span className="hint">исправлено</span>}
           </div>
         ))}
-      </dl>
-      {summary.red_flags.length > 0 && (
-        <div className="alert alert-error small">Рекомендуем как можно скорее обратиться к врачу. Куратор получит уведомление.</div>
-      )}
-      <button className="btn btn-primary" disabled={busy} onClick={() => onConfirm(edits)}>
-        {busy ? "Сохраняем…" : "Да, всё верно"}
-      </button>
+      </div>
+      <div className="row gap-sm wrap">
+        <button className="btn btn-primary btn-lg" disabled={busy} onClick={() => onConfirm(edits)}>
+          {busy ? "Сохраняем…" : "Да, всё верно"}
+        </button>
+      </div>
     </div>
   );
 }
 
 export default function InterviewPage() {
   const { id } = useParams<{ id: string }>();
-  const { settings, ready, rememberCase, role, setRole } = useApp();
-  const [caseInfo, setCaseInfo] = useState<CaseView | null>(null);
+  const { settings, ready, rememberCase, role, setRole, refreshShell } = useApp();
+  const [c, setCase] = useState<CaseView | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
   const [item, setItem] = useState<InterviewItem | null>(null);
   const [items, setItems] = useState<InterviewItem[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [single, setSingle] = useState<string | null>(null);
   const [multi, setMulti] = useState<string[]>([]);
-  const [custom, setCustom] = useState("");
+  const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const chatRef = useRef<HTMLDivElement>(null);
-  const summaryRef = useRef<HTMLDivElement>(null);
+  usePageMeta("Интервью", c ? `${c.child_alias} · что уже есть и что мешает` : undefined);
 
   useEffect(() => {
     if (ready && role !== "parent") setRole("parent");
@@ -104,12 +131,13 @@ export default function InterviewPage() {
       try {
         if (status === "draft") await api<CaseView>("parent", `/cases/${id}/plan/generate`, { method: "POST", body: {} });
         setPhase("finished");
+        refreshShell();
       } catch (e) {
         setError((e as Error).message);
         setPhase("error");
       }
     },
-    [id],
+    [id, refreshShell],
   );
 
   const handle = useCallback(
@@ -123,13 +151,13 @@ export default function InterviewPage() {
       }
       if (r.item) {
         setItem(r.item);
-        setSingle(null);
         setMulti([]);
-        setCustom("");
+        setText("");
         if (r.item.type === "confirm" && r.summary) {
           setSummary(r.summary);
           setPhase("summary");
         } else setPhase("question");
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
     },
     [finish],
@@ -140,14 +168,14 @@ export default function InterviewPage() {
     rememberCase(Number(id));
     (async () => {
       try {
-        const c = await api<CaseView>("parent", `/cases/${id}`);
-        setCaseInfo(c);
-        if (c.summary_confirmed) {
-          await finish(c.status);
+        const cv = await api<CaseView>("parent", `/cases/${id}`);
+        setCase(cv);
+        if (cv.summary_confirmed) {
+          await finish(cv.status);
           return;
         }
         const r = await api<NextResponse>("parent", `/cases/${id}/interview/next`, { method: "POST", body: {} });
-        await handle(r, c.status);
+        await handle(r, cv.status);
       } catch (e) {
         setError((e as Error).message);
         setPhase("error");
@@ -155,34 +183,12 @@ export default function InterviewPage() {
     })();
   }, [id, ready, handle, finish, rememberCase]);
 
-  useEffect(() => {
-    // Прокручиваем только ленту чата: к началу сводки или к последнему сообщению.
-    const chat = chatRef.current;
-    if (!chat) return;
-    const target = phase === "summary" ? summaryRef.current : bottomRef.current;
-    if (target) chat.scrollTop = target.offsetTop - (phase === "summary" ? 8 : chat.clientHeight - 40);
-    else chat.scrollTop = chat.scrollHeight;
-  }, [item, phase, items.length]);
-
-  function buildAnswer(): string | string[] | null {
-    if (!item) return null;
-    const extra = custom.trim();
-    if (item.type === "text") return extra || null;
-    if (item.type === "multi") {
-      const vals = [...multi, ...(extra ? [extra] : [])];
-      return vals.length ? vals : null;
-    }
-    return extra || single;
-  }
-
-  async function submit() {
-    const answer = buildAnswer();
-    if (answer === null) return;
+  async function send(answer: string | string[]) {
     setBusy(true);
     setError(null);
     try {
       const r = await api<NextResponse>("parent", `/cases/${id}/interview/next`, { method: "POST", body: { answer } });
-      await handle(r, caseInfo?.status ?? "draft");
+      await handle(r, c?.status ?? "draft");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -194,7 +200,7 @@ export default function InterviewPage() {
     setBusy(true);
     try {
       const r = await api<NextResponse>("parent", `/cases/${id}/interview/autofill`, { method: "POST" });
-      await handle(r, caseInfo?.status ?? "draft");
+      await handle(r, c?.status ?? "draft");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -209,7 +215,7 @@ export default function InterviewPage() {
         method: "POST",
         body: { corrections: Object.keys(corrections).length ? corrections : null },
       });
-      await finish(caseInfo?.status ?? "draft");
+      await finish(c?.status ?? "draft");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -220,138 +226,157 @@ export default function InterviewPage() {
   const answered = items.filter((i) => i.answer !== null && i.qid !== "12");
   const total = progress?.expected_total ?? 12;
   const current = item ? item.n : answered.length;
+  const redFlag = answered.some((i) => i.slot === "red_flags" && Array.isArray(i.answer) && !i.answer.includes("Ничего из этого"));
+
+  if (phase === "error") return <div className="alert alert-error">{error}</div>;
+  if (phase === "loading" || !c) return <div className="hint">Загрузка интервью…</div>;
+
+  if (phase === "summary" && summary) {
+    return (
+      <>
+        {error && <div className="alert alert-error">{error}</div>}
+        <SummaryView summary={summary} busy={busy} onConfirm={confirmSummary} />
+      </>
+    );
+  }
+
+  if (phase === "generating" || phase === "finished") {
+    return (
+      <div className="row" style={{ justifyContent: "center", paddingTop: 24 }}>
+        <div className="stack" style={{ width: 620, maxWidth: "100%", gap: 20 }}>
+          <h1 className="h-page">План на проверке у куратора</h1>
+          <p className="lead">
+            Черновик готов. Куратор проверит каждый шаг и сроки — после этого план появится в кабинете и начнутся напоминания.
+          </p>
+          <div className="card checks">
+            <div className="check-line">
+              <span className="check-dot">
+                <Check />
+              </span>
+              Анкета заполнена
+            </div>
+            <div className="check-line">
+              <span className="check-dot">
+                <Check />
+              </span>
+              Сводка подтверждена
+            </div>
+            <div className="check-line">
+              {phase === "generating" ? (
+                <>
+                  <span className="spinner" aria-hidden /> Собираем черновик плана из справочника услуг…
+                </>
+              ) : (
+                <>
+                  <span className="check-dot">
+                    <Check />
+                  </span>
+                  Черновик плана составлен
+                </>
+              )}
+            </div>
+            <div className="check-line">
+              <span className="check-dot pending" />
+              <b>Проверка куратором</b>
+            </div>
+          </div>
+          {phase === "finished" && (
+            <div className="row gap-sm wrap">
+              <Link className="btn btn-primary btn-lg" href={`/parent/cases/${id}`}>
+                Перейти к плану
+              </Link>
+              <Link className="btn btn-lg" href={`/parent/cases/${id}/documents`}>
+                Мои документы
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="interview-layout single">
-      <div className="stack">
-        <div>
-          <Link href="/parent" className="muted small">
-            ← Кабинет родителя
-          </Link>
-          <h1 className="h-page">
-            Интервью {caseInfo ? `· ${caseInfo.child_alias}` : ""} {caseInfo && <StageBadge stage={caseInfo.stage} />}
-          </h1>
-          {caseInfo && (
-            <p className="muted small">
-              {caseInfo.age_text}, {caseInfo.city}. Отвечайте своими словами — здесь нет правильных и неправильных ответов.
-            </p>
-          )}
+    <div className="two-col">
+      <div className="stack" style={{ gap: 14, maxWidth: 760 }}>
+        <div className="stack-sm">
+          <div className="progress-head">
+            <span className="eyebrow">
+              Вопрос {Math.min(Math.max(current, 1), total)} из {total}
+            </span>
+            <span className="hint">вопросы подбираются под вашу ситуацию</span>
+          </div>
+          <div className="progress">
+            <div className="progress-fill" style={{ width: `${(Math.min(answered.length, total) / total) * 100}%` }} />
+          </div>
         </div>
 
-        <div className="card chat-card">
-          <div className="chat-progress">
-            <div className="progress-head">
-              <span>
-                Вопрос <b>{Math.min(Math.max(current, 1), total)}</b> из {total}
-              </span>
-              <span className="muted small">вопросы подбираются под вашу ситуацию (8–12)</span>
-            </div>
-            <div className="progress">
-              <div className="progress-fill" style={{ width: `${(Math.min(current, total) / total) * 100}%` }} />
-            </div>
+        {redFlag && (
+          <div className="alert alert-crit" role="alert">
+            <b>Важно.</b> Рекомендуем как можно скорее обратиться к врачу. Куратор получит отметку «срочно».
           </div>
+        )}
 
-          <div className="chat" ref={chatRef}>
-            <div className="bubble bot">
-              Здравствуйте! Анкету вы уже заполнили. Теперь несколько вопросов о том, что уже получается и что мешает. Диагнозы я
-              не ставлю и ребёнка не оцениваю.
-            </div>
-            {answered.map((i) => (
-              <div key={i.n} className="chat-pair">
-                <div className="bubble bot">
-                  {i.text}
-                  {i.source === "llm" && <span className="pill pill-ai pill-xs">AI</span>}
-                </div>
-                <div className="bubble me">
-                  {answerText(i.answer)}
-                  {i.autofilled && <span className="pill pill-muted pill-xs">демо</span>}
-                </div>
+        {answered.length > 0 && (
+          <div className="history">
+            {answered.slice(-3).map((i) => (
+              <div key={i.n} className="qa">
+                <div className="bubble-q">{i.text}</div>
+                <div className="bubble-a">{answerText(i.answer)}</div>
               </div>
             ))}
-            {phase === "question" && item && (
-              <div className="bubble bot current">
-                {item.text}
-                {item.source === "llm" && <span className="pill pill-ai pill-xs">AI</span>}
-              </div>
-            )}
-            {phase === "summary" && summary && (
-              <div className="bubble bot current wide" ref={summaryRef}>
-                <b>{item?.text}</b>
-                <SummaryEditor summary={summary} onConfirm={confirmSummary} busy={busy} />
-              </div>
-            )}
-            {phase === "loading" && <div className="bubble bot muted">…</div>}
-            {busy && phase === "question" && <div className="bubble bot typing">Подбираю следующий вопрос…</div>}
-            {phase === "generating" && (
-              <div className="bubble bot">
-                <span className="spinner spinner-sm" aria-hidden /> Спасибо! Собираю черновик маршрута из справочника услуг…
-              </div>
-            )}
-            {phase === "finished" && (
-              <div className="bubble bot">
-                <b>Готово.</b> Черновик маршрута отправлен куратору. Вы увидите план, как только он будет проверен и подтверждён.
-                <div className="mt-sm row gap-sm wrap">
-                  <Link className="btn btn-primary btn-sm" href={`/parent/cases/${id}`}>
-                    Мой маршрут
-                  </Link>
-                  <Link className="btn btn-sm" href={`/parent/cases/${id}/documents`}>
-                    Моя папка документов
-                  </Link>
-                </div>
-              </div>
-            )}
-            {phase === "error" && <div className="alert alert-error">{error}</div>}
-            <div ref={bottomRef} />
           </div>
+        )}
 
-          {phase === "question" && item && (
-            <div className="composer">
-              {item.type !== "text" && (
-                <div className="chips">
-                  {item.options.map((o) => {
-                    const on = item.type === "choice" ? single === o : multi.includes(o);
-                    return (
-                      <button key={o} className={`chip ${on ? "on" : ""}`} disabled={busy}
-                        onClick={() => {
-                          if (item.type === "choice") {
-                            setSingle(o);
-                            setCustom("");
-                          } else setMulti((m) => (m.includes(o) ? m.filter((x) => x !== o) : [...m, o]));
-                        }}>
-                        {item.type === "multi" && (on ? "✓ " : "+ ")}
-                        {o}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="composer-row">
-                <textarea className="input" rows={item.type === "text" ? 2 : 1} disabled={busy} value={custom}
-                  placeholder={item.type === "text" ? "Напишите своими словами" : "Или свой вариант"}
-                  onChange={(e) => {
-                    setCustom(e.target.value);
-                    if (item.type === "choice" && e.target.value) setSingle(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      submit();
-                    }
-                  }} />
-                <button className="btn btn-primary" onClick={submit} disabled={busy || buildAnswer() === null}>
-                  Ответить
-                </button>
+        {item && (
+          <div className="question-card">
+            <h2>{item.text}</h2>
+            {item.source === "llm" && <span className="hint">Вопрос сформулирован AI с учётом ваших прошлых ответов</span>}
+            {item.type === "multi" && <span className="hint">Можно выбрать несколько вариантов</span>}
+
+            {item.type !== "text" && (
+              <div className="options">
+                {item.options.map((o) => {
+                  const on = item.type === "multi" && multi.includes(o);
+                  return (
+                    <button key={o} className={`option ${on ? "on" : ""}`} disabled={busy}
+                      onClick={() => (item.type === "choice" ? send(o) : setMulti((m) => (m.includes(o) ? m.filter((x) => x !== o) : [...m, o])))}>
+                      <span className={`option-box ${item.type === "multi" ? "square" : ""}`}>{on && <Check />}</span>
+                      <span>{o}</span>
+                    </button>
+                  );
+                })}
               </div>
-              {error && <div className="alert alert-error">{error}</div>}
-              {caseInfo?.scenario && settings?.demo_mode && (
-                <button className="btn btn-ghost btn-sm self-start" onClick={autofill} disabled={busy}
-                  title="Оставшиеся ответы берутся из синтетического кейса">
-                  Заполнить демо-ответами
+            )}
+
+            {item.type === "text" && (
+              <textarea className="input" rows={4} value={text} disabled={busy} placeholder="Напишите своими словами" autoFocus
+                onChange={(e) => setText(e.target.value)} />
+            )}
+
+            {error && <div className="alert alert-error">{error}</div>}
+
+            <div className="row between wrap gap-sm">
+              {c.scenario && settings?.demo_mode ? (
+                <button className="btn btn-sm btn-demo" onClick={autofill} disabled={busy} title="Оставшиеся ответы берутся из синтетического кейса">
+                  Демо: заполнить ответами
+                </button>
+              ) : (
+                <span />
+              )}
+              {item.type !== "choice" && (
+                <button className="btn btn-primary" disabled={busy || (item.type === "multi" ? !multi.length : !text.trim())}
+                  onClick={() => send(item.type === "multi" ? multi : text.trim())}>
+                  {busy ? "…" : "Далее"}
                 </button>
               )}
+              {item.type === "choice" && busy && <span className="hint">Сохраняем…</span>}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+      </div>
+
+      <div className="side">
+        <Known c={c} items={items} />
       </div>
     </div>
   );

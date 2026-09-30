@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CaseStatusBadge, StageBadge } from "@/components/Badges";
 import { api } from "@/lib/api";
-import { useApp } from "@/lib/app-context";
+import { useApp, usePageMeta } from "@/lib/app-context";
 import type { CaseSummary, CaseView, DocType, Intake, Language } from "@/lib/types";
 
 const CITIES = ["Алматы", "Астана", "Шымкент", "Караганда", "Актобе", "Павлодар", "Өскемен", "Кызылорда", "Петропавловск", "Другой город"];
@@ -70,6 +70,7 @@ export default function ParentHome() {
   const [form, setForm] = useState({ child_alias: "", birth_date: "", city: "Алматы", otherCity: "", language: "ru" as Language });
   const [intake, setIntake] = useState<Intake>(EMPTY_INTAKE);
   const [busy, setBusy] = useState(false);
+  usePageMeta("Кабинет родителя", "Ваши кейсы и новая анкета");
 
   useEffect(() => {
     if (ready && role !== "parent") setRole("parent");
@@ -116,7 +117,6 @@ export default function ParentHome() {
 
   return (
     <div className="stack-lg">
-      <h1 className="h-page">Кабинет родителя</h1>
       {error && <div className="alert alert-error">{error}</div>}
 
       {mine && mine.length > 0 && (
@@ -254,7 +254,7 @@ export default function ParentHome() {
           </div>
         </fieldset>
 
-        <button className="btn btn-primary self-start" disabled={busy}>
+        <button className="btn btn-primary btn-lg self-start" disabled={busy}>
           {busy ? "Создаём…" : "Создать и начать интервью"}
         </button>
       </form>

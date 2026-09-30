@@ -67,12 +67,12 @@ export function HelpPanel({ stepId, role, version }: { stepId: number; role: Rol
         </div>
       </div>
       {help.blocker && (
-        <div className="blocker-note small">
+        <div className="note-box crit">
           <b>Препятствие:</b> {help.blocker.label}
           {help.blocker.note ? ` — ${help.blocker.note}` : ""}
         </div>
       )}
-      {help.dispute_hint && <div className="note small">{help.dispute_hint}</div>}
+      {help.dispute_hint && <div className="note-box">{help.dispute_hint}</div>}
       {role === "curator" && (
         <div className="help-message">
           <div className="row between wrap gap-sm">

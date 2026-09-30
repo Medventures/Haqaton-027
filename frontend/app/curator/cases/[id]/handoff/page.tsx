@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AgencyBadge, StageBadge } from "@/components/Badges";
 import { api } from "@/lib/api";
-import { useApp } from "@/lib/app-context";
+import { useApp, usePageMeta } from "@/lib/app-context";
 import { LANGUAGE_LABEL, STATUS_LABEL, ageText, fmtDate } from "@/lib/format";
 import type { Domain, Handoff, HandoffStep } from "@/lib/types";
 
@@ -51,6 +51,7 @@ export default function HandoffPage() {
   const { ready, role, setRole } = useApp();
   const [h, setH] = useState<Handoff | null>(null);
   const [error, setError] = useState<string | null>(null);
+  usePageMeta("Передача дела", h ? `${h.case.alias} · сводка на ${fmtDate(h.as_of)}` : undefined);
 
   useEffect(() => {
     if (ready && role !== "curator") setRole("curator");
@@ -110,26 +111,26 @@ export default function HandoffPage() {
         <p className="handoff-summary">{h.summary_text}</p>
       </header>
 
-      <section className="kpis">
-        <div className="kpi">
-          <div className="stat-value">{h.done.length}</div>
-          <div className="muted small">выполнено</div>
+      <section className="stats">
+        <div className="stat">
+          <b>{h.done.length}</b>
+          <span>выполнено</span>
         </div>
-        <div className="kpi">
-          <div className="stat-value">{h.pending.length}</div>
-          <div className="muted small">в работе и впереди</div>
+        <div className="stat">
+          <b>{h.pending.length}</b>
+          <span>в работе и впереди</span>
         </div>
-        <div className={`kpi ${h.overdue.length ? "kpi-danger" : ""}`}>
-          <div className="stat-value">{h.overdue.length}</div>
-          <div className="muted small">просрочено</div>
+        <div className={`stat ${h.overdue.length ? "crit" : ""}`}>
+          <b>{h.overdue.length}</b>
+          <span>просрочено</span>
         </div>
-        <div className={`kpi ${h.blockers.length ? "kpi-warn" : ""}`}>
-          <div className="stat-value">{h.blockers.length}</div>
-          <div className="muted small">препятствий</div>
+        <div className={`stat ${h.blockers.length ? "warn" : ""}`}>
+          <b>{h.blockers.length}</b>
+          <span>препятствий</span>
         </div>
-        <div className={`kpi ${h.documents.missing.length ? "kpi-warn" : ""}`}>
-          <div className="stat-value">{h.documents.missing.length}</div>
-          <div className="muted small">документов нет</div>
+        <div className={`stat ${h.documents.missing.length ? "warn" : ""}`}>
+          <b>{h.documents.missing.length}</b>
+          <span>документов нет</span>
         </div>
       </section>
 

@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useApp } from "@/lib/app-context";
+import { useApp, usePageMeta } from "@/lib/app-context";
 import type { Role } from "@/lib/types";
 
 export default function Home() {
-  const { role, setRole } = useApp();
+  const { setRole } = useApp();
   const router = useRouter();
+  usePageMeta("Добро пожаловать", "Единый маршрут помощи семье");
 
   function pick(r: Role) {
     setRole(r);
@@ -15,44 +16,63 @@ export default function Home() {
 
   return (
     <div className="stack-lg">
-      <section className="hero">
-        <h1>Один маршрут помощи вместо хождения по ведомствам</h1>
-        <p className="lead">
-          Родитель заполняет короткую анкету и отвечает на 8–12 вопросов. Код строит единый план из справочника услуг
-          медицины, образования и соцзащиты: какие шаги нужны сейчас, какие откроются позже и в какие сроки. AI объясняет
-          каждый шаг простым языком. Куратор подтверждает план, следит за сроками и помогает семье собрать документы.
-        </p>
-      </section>
-
-      <section className="grid-2">
-        <button className={`role-card ${role === "parent" ? "selected" : ""}`} onClick={() => pick("parent")}>
-          <span className="role-icon" aria-hidden>
-            👪
+      <section className="hero-grid">
+        <div className="stack" style={{ gap: 22 }}>
+          <span className="eyebrow">Для семей детей с РАС</span>
+          <h1>Один маршрут вместо хождения по ведомствам</h1>
+          <p className="lead">
+            Короткая анкета и 8–12 вопросов — и у семьи единый план по линии здравоохранения, образования и соцзащиты: какие
+            шаги нужны сейчас, какие откроются позже и какие документы собрать.
+          </p>
+          <div className="row gap-sm wrap">
+            <button className="btn btn-primary btn-lg" onClick={() => pick("parent")}>
+              Я родитель
+            </button>
+            <button className="btn btn-lg" onClick={() => pick("curator")}>
+              Я куратор
+            </button>
+          </div>
+        </div>
+        <div className="how">
+          <span className="muted" style={{ fontSize: 14, fontWeight: 600 }}>
+            Как это работает
           </span>
-          <span className="role-title">Я родитель</span>
-          <span className="role-desc">Создать кейс, пройти интервью и увидеть подтверждённый маршрут семьи</span>
-        </button>
-        <button className={`role-card ${role === "curator" ? "selected" : ""}`} onClick={() => pick("curator")}>
-          <span className="role-icon" aria-hidden>
-            🗂️
-          </span>
-          <span className="role-title">Я куратор</span>
-          <span className="role-desc">Проверить и подтвердить планы, вести статусы, просрочки и передачу дела</span>
-        </button>
+          <div className="how-step">
+            <span className="how-num">1</span>
+            <div>
+              <b>Анкета и вопросы</b>
+              <span>Отмечаем, что уже есть у семьи, и задаём только те вопросы, ответов на которые нет в анкете.</span>
+            </div>
+          </div>
+          <div className="how-step">
+            <span className="how-num">2</span>
+            <div>
+              <b>План из каталога услуг</b>
+              <span>Код определяет шаги, сроки и что откроется после чего. AI объясняет каждый шаг простым языком.</span>
+            </div>
+          </div>
+          <div className="how-step">
+            <span className="how-num">3</span>
+            <div>
+              <b>Куратор и напоминания</b>
+              <span>Куратор проверяет план, видит просрочки и помогает собрать документы. Семья получает напоминания.</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="principles">
         <div>
           <b>Без диагнозов</b>
-          <span className="muted small">Система не ставит диагнозы, не оценивает и не советует лечение.</span>
+          <span className="hint">Не ставим диагнозов, не оцениваем ребёнка и не советуем лечение.</span>
         </div>
         <div>
           <b>Только из каталога</b>
-          <span className="muted small">Каждый шаг — реальная услуга из справочника, код проверяет каждый id.</span>
+          <span className="hint">Каждый шаг — услуга из справочника; код проверяет каждый шаг.</span>
         </div>
         <div>
           <b>Зависимости и сроки считает код</b>
-          <span className="muted small">Какие шаги заблокированы, когда откроются, что просрочено — вычисляется, а не генерируется.</span>
+          <span className="hint">Что заблокировано, когда откроется и что просрочено — вычисляется, а не генерируется.</span>
         </div>
       </section>
     </div>

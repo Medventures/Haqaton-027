@@ -1,23 +1,22 @@
 import type { Metadata } from "next";
+import { Onest } from "next/font/google";
+import { AppShell } from "@/components/AppShell";
 import { AppProvider } from "@/lib/app-context";
-import { Header } from "@/components/Header";
 import "./globals.css";
+
+const onest = Onest({ subsets: ["latin", "cyrillic"], variable: "--font-onest", display: "swap" });
 
 export const metadata: Metadata = {
   title: "AqylRoute AI",
-  description: "Межведомственный маршрут помощи семье: интервью, Case Plan, контроль сроков",
+  description: "Межведомственный маршрут помощи семье: интервью, единый план, контроль сроков",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru">
+    <html lang="ru" className={onest.variable}>
       <body>
         <AppProvider>
-          <Header />
-          <main className="container">{children}</main>
-          <footer className="footer container">
-            Все данные синтетические. Система не ставит диагнозы и не даёт медицинских рекомендаций.
-          </footer>
+          <AppShell>{children}</AppShell>
         </AppProvider>
       </body>
     </html>
