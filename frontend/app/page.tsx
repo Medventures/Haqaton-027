@@ -1,14 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { useApp, usePageMeta } from "@/lib/app-context";
 import type { Role } from "@/lib/types";
 
 export default function Home() {
-  const { setRole } = useApp();
+  const { setRole, lang, setLang } = useApp();
   const router = useRouter();
-  const [lang, setLang] = useState<"ru" | "kk">("ru");
   usePageMeta("Добро пожаловать", "Единый маршрут помощи семье");
 
   function pick(r: Role) {
@@ -30,7 +28,7 @@ export default function Home() {
             <button className="btn btn-primary btn-lg" onClick={() => { setRole("parent"); router.push("/parent/login"); }}>
               Войти через eGov
             </button>
-            <div className="segmented">
+            <div className="segmented no-translate">
               <button className={lang === "kk" ? "active" : ""} onClick={() => setLang("kk")}>
                 Қазақша
               </button>
@@ -39,7 +37,7 @@ export default function Home() {
               </button>
             </div>
           </div>
-          {lang === "kk" && <span className="hint">Қазақша нұсқасы әзірленуде — әзірге орыс тілінде көрсетеміз.</span>}
+          {lang === "kk" && <span className="hint">Аударма автоматты түрде жасалған, тексерілуде.</span>}
           <div className="row gap-sm wrap small">
             <span className="muted">Вы специалист?</span>
             <button className="link-btn" onClick={() => pick("curator")}>

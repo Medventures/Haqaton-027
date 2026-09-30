@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { STAGE_LABEL, fmtDate } from "@/lib/format";
 import { remindersFor } from "@/lib/reminders";
+import { Translator } from "./Translator";
 import type { CaseView, Role, Stage } from "@/lib/types";
 
 const STAGES: Stage[] = ["early", "correction", "socialization"];
@@ -106,7 +107,7 @@ function DemoDate() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { page, role, setRole, settings, ready, shellVersion } = useApp();
+  const { page, role, setRole, settings, ready, shellVersion, lang, setLang } = useApp();
   const m = pathname.match(/^\/(parent|curator)\/cases\/(\d+)/);
   const caseId = m ? Number(m[2]) : null;
   const caseRole: Role = m?.[1] === "curator" ? "curator" : "parent";
@@ -237,6 +238,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
             )}
             {role === "curator" && <DemoDate />}
+            <div className="segmented no-translate" role="group" aria-label="Язык / Тіл">
+              <button className={lang === "ru" ? "active" : ""} onClick={() => setLang("ru")}>
+                Рус
+              </button>
+              <button className={lang === "kk" ? "active" : ""} onClick={() => setLang("kk")}>
+                Қаз
+              </button>
+            </div>
             <div className="segmented" role="group" aria-label="Роль">
               <button className={role === "parent" ? "active" : ""} onClick={() => switchRole("parent")}>
                 Родитель
@@ -248,6 +257,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main className="content">{children}</main>
+        <Translator lang={lang} />
         <footer className="content-foot">Все данные синтетические. Система не ставит диагнозы и не даёт медицинских рекомендаций.</footer>
       </div>
     </div>

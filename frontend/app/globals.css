@@ -1833,3 +1833,17 @@ textarea.input {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* индикатор перевода */
+.translating {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 50;
+  background: var(--text);
+  color: #fff;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+}

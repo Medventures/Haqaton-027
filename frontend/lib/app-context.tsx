@@ -9,7 +9,11 @@ export interface PageMeta {
   subtitle?: string;
 }
 
+export type Lang = "ru" | "kk";
+
 interface AppCtx {
+  lang: Lang;
+  setLang: (l: Lang) => void;
   page: PageMeta;
   setPage: (m: PageMeta) => void;
   shellVersion: number;
@@ -26,6 +30,7 @@ interface AppCtx {
 const Ctx = createContext<AppCtx | null>(null);
 const ROLE_KEY = "aqylroute.role";
 const MY_CASES_KEY = "aqylroute.myCases";
+const LANG_KEY = "aqylroute.lang";
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -42,6 +47,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [myCases, setMyCases] = useState<number[]>([]);
   const [page, setPage] = useState<PageMeta>({ title: "AqylRoute AI" });
+  const [lang, setLangState] = useState<Lang>("ru");
+  const setLang = useCallback((l: Lang) => {
+    setLangState(l);
+    try {
+      localStorage.setItem(LANG_KEY, l);
+    } catch {}
+  }, []);
   const [shellVersion, setShellVersion] = useState(0);
   const refreshShell = useCallback(() => setShellVersion((v) => v + 1), []);
 
@@ -49,6 +61,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const saved = readJson<string | null>(ROLE_KEY, null);
     if (saved === "parent" || saved === "curator") setRoleState(saved);
     setMyCases(readJson<number[]>(MY_CASES_KEY, []));
+    try {
+      if (localStorage.getItem(LANG_KEY) === "kk") setLangState("kk");
+    } catch {}
     setReady(true);
   }, []);
 
@@ -84,7 +99,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [refreshSettings]);
 
   return (
-    <Ctx.Provider value={{ page, setPage, shellVersion, refreshShell, role, setRole, ready, settings, refreshSettings, myCases, rememberCase }}>
+    <Ctx.Provider value={{ lang, setLang, page, setPage, shellVersion, refreshShell, role, setRole, ready, settings, refreshSettings, myCases, rememberCase }}>
       {children}
     </Ctx.Provider>
   );

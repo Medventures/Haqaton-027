@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from . import config, db, gov, llm
+from . import config, db, gov, i18n, llm
 from . import interview as iv
 from .catalog import (
     CHANNELS, DOMAIN_LABELS, QUESTIONS_BY_ID, SCENARIOS, SLOT_LABELS, STAGES,
@@ -408,6 +408,20 @@ def reset_case(case_id: int, _: Role = Depends(require_curator), __: None = Depe
             issued, valid = dates.get(doc, (None, None))
             db.set_case_document(conn, case_id, doc, True, issued, valid, keep_dates=False)
     return {"ok": True}
+
+
+# ---------- перевод интерфейса ----------
+
+
+class TranslateIn(BaseModel):
+    lang: Literal["kk"] = "kk"
+    texts: list[str] = Field(default_factory=list, max_length=i18n.MAX_TEXTS)
+
+
+@app.post("/api/i18n/translate")
+def translate(body: TranslateIn):
+    """Перевод строк интерфейса на казахский (кеш в SQLite; при сбое — пусто, фронтенд показывает ru)."""
+    return {"lang": body.lang, "translations": i18n.translate(body.texts, body.lang)}
 
 
 # ---------- вход через eGov (имитация) ----------

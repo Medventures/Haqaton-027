@@ -221,3 +221,16 @@ def test_parent_sees_steps_with_indicators(client):
     steps = steps_of(client, cid, PARENT)
     assert steps["SOC_MSE_REEXAM"]["indicator"] == "overdue"  # родителю без «эскалации»
     assert steps["EDU_TUTOR"]["indicator"] == "locked"
+
+
+def test_translation_cache_and_fallback(client, fake_llm):
+    # без модели — пусто (фронтенд показывает русский)
+    assert client.post("/api/i18n/translate", json={"texts": ["План"]}).json()["translations"] == {}
+    f = fake_llm(lambda name, schema, user_input, n: {"items": [{"i": 0, "text": "Жоспар"}, {"i": 1, "text": "Құжаттар"}]})
+    r = client.post("/api/i18n/translate", json={"texts": ["План", "Документы"]}).json()
+    assert r["translations"] == {"План": "Жоспар", "Документы": "Құжаттар"}
+    client.post("/api/i18n/translate", json={"texts": ["План", "Документы"]})
+    assert len(f.calls) == 1  # второй раз — из кеша
+    fake_llm(lambda *a: LLMError("down"))
+    assert client.post("/api/i18n/translate", json={"texts": ["Новое"]}).json()["translations"] == {}
+    assert client.post("/api/i18n/translate", json={"lang": "en", "texts": ["x"]}).status_code == 422

@@ -153,6 +153,10 @@ def init_db() -> None:
             conn.executescript(SCHEMA)
             conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         sync_catalog(conn)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS translations (lang TEXT NOT NULL, src TEXT NOT NULL, dst TEXT NOT NULL, "
+            "PRIMARY KEY (lang, src))"
+        )
         if conn.execute("SELECT COUNT(*) FROM cases").fetchone()[0] == 0:
             seed_cases(conn)
             set_demo_today(conn, date.fromisoformat(config.DEMO_SEED_TODAY))

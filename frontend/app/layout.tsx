@@ -4,7 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { AppProvider } from "@/lib/app-context";
 import "./globals.css";
 
-const onest = Onest({ subsets: ["latin", "cyrillic"], variable: "--font-onest", display: "swap" });
+const onest = Onest({ subsets: ["latin", "cyrillic", "cyrillic-ext"], variable: "--font-onest", display: "swap" });
 
 export const metadata: Metadata = {
   title: "AqylRoute AI",
