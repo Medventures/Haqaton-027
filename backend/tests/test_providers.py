@@ -7,12 +7,21 @@ def test_seed_is_demo_only(client):
     items = client.get("/api/providers").json()["providers"]
     assert len(items) == len(providers.SEED)
     assert all(p["is_demo"] is True and p["contact"] is None for p in items)
-    assert all(p["name"].startswith("Демо-") and len(p["description"]) <= 200 for p in items)
+    assert all(len(p["description"]) <= 200 and "«" in p["name"] for p in items)
+    assert len({(p["name"], p["city"]) for p in items}) == len(items)  # no duplicates within a city
     with db.tx() as conn:
         assert conn.execute("SELECT COUNT(*) FROM providers WHERE is_demo != 1").fetchone()[0] == 0
-    for city in ("Кызылорда", "Петропавловск", "Шымкент"):
-        n = sum(1 for p in items if p["city"] == city)
-        assert 4 <= n <= 5
+    for city in providers.CITIES:
+        types = {p["type"] for p in items if p["city"] == city}
+        assert types == set(providers.TYPES)  # every type in every city
+
+
+def test_seed_refresh_replaces_old_demo_rows(client):
+    with db.tx() as conn:
+        conn.execute("UPDATE providers SET name = 'Старое название' WHERE id = 1")
+        providers.ensure(conn)
+        assert conn.execute("SELECT COUNT(*) FROM providers WHERE name = 'Старое название'").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM providers").fetchone()[0] == len(providers.SEED)
 
 
 def test_filters_city_and_type(client):
@@ -39,7 +48,7 @@ def test_where_to_get_only_on_match(client):
 def test_where_to_get_needs_same_city(client):
     cid = case_id_by_scenario(client, "2")
     with db.tx() as conn:
-        conn.execute("UPDATE cases SET city = 'Актобе' WHERE id = ?", (cid,))
+        conn.execute("UPDATE cases SET city = 'Туркестан' WHERE id = ?", (cid,))
     ready_plan(client, "2")
     client.post(f"/api/cases/{cid}/steps", json={"service_id": "EDU_REHAB"}, headers=CURATOR)
     assert steps_of(client, cid, PARENT)["EDU_REHAB"]["where_to_get"] == []

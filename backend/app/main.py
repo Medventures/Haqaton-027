@@ -886,7 +886,7 @@ def urgent_resolve(case_id: int, role: Role = Depends(require_curator)):
 
 
 @app.get("/api/providers")
-def list_providers(city: str | None = None, type: Literal["club", "speech_therapist", "defectologist", "center"] | None = None,
+def list_providers(city: str | None = None, type: Literal["center", "speech_therapist", "defectologist", "psychologist", "club", "sport", "parents"] | None = None,
                    service_id: str | None = None):
     """Demo directory, alphabetical. Filters only by city, type and catalog service; no ratings, no personalisation."""
     with db.tx() as conn:
