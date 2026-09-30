@@ -2199,40 +2199,6 @@ textarea.input {
   color: var(--crit-text);
 }
 
-/* вопросы (FAQ) в виджете */
-.faq-item,
-.faq-step {
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-sm);
-  background: var(--surface-2);
-}
-.faq-step {
-  background: var(--surface);
-}
-.faq-item summary,
-.faq-step summary {
-  cursor: pointer;
-  padding: 10px 12px;
-  font-size: 14px;
-  font-weight: 500;
-}
-.faq-step summary {
-  font-weight: 600;
-}
-.faq-step > div {
-  padding: 0 10px 10px;
-}
-.faq-item p {
-  margin: 0;
-  padding: 0 12px 10px;
-  font-size: 14px;
-  color: var(--text-2);
-}
-.faq-luna {
-  border-top: 1px solid var(--line-soft);
-  padding-top: 12px;
-}
-
 /* вид «Маршрут» */
 .route-progress {
   display: flex;
@@ -2608,4 +2574,82 @@ textarea.input {
 }
 .portfolio-bar {
   min-width: 24px;
+}
+
+/* вопросы-подсказки в виджете: компактные чипы, клик задаёт вопрос AqylRoute AI */
+.ask-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.faq-chips {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+}
+.faq-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.q-chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.3;
+  text-align: left;
+}
+.q-chip:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.q-chip:disabled {
+  opacity: 0.6;
+}
+
+/* колокольчик в шапке */
+.topbar-bell {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--seg);
+  color: var(--text-2) !important;
+  text-decoration: none !important;
+}
+.topbar-bell:hover {
+  background: var(--surface-3);
+  color: var(--text) !important;
+}
+.topbar-bell-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.topbar-bell-badge.urgent {
+  background: var(--urgent);
 }

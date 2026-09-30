@@ -149,6 +149,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     : pathname.endsWith("/interview") ? (c?.summary_confirmed ? 4 : 3)
     : -1;
   const parentReminders = c && c.plan_visible ? remindersFor(c).filter((r) => r.tone === "crit" || r.tone === "warn").length : c?.alert ? 1 : 0;
+  // Bell next to the language switch: the family sees its reminders, the curator — unread notifications.
+  const bell = role === "curator"
+    ? { href: "/curator/notifications", count: unread, label: "Уведомления", urgent: true }
+    : m?.[1] === "parent" && c
+      ? { href: `/parent/cases/${c.id}/reminders`, count: parentReminders, label: "Напоминания", urgent: c.alert || c.overdue > 0 }
+      : null;
   const is = (href: string) => pathname === href;
 
   return (
@@ -248,6 +254,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </span>
             )}
             {role === "curator" && <DemoDate />}
+            {bell && (
+              <Link href={bell.href} className="topbar-bell" aria-label={`${bell.label}: ${bell.count}`} title={bell.label}>
+                <Icon name="bell" />
+                {bell.count > 0 && <span className={`topbar-bell-badge ${bell.urgent ? "urgent" : ""}`}>{bell.count > 99 ? "99+" : bell.count}</span>}
+              </Link>
+            )}
             <div className="segmented no-translate" role="group" aria-label="Язык / Тіл">
               <button className={lang === "ru" ? "active" : ""} onClick={() => setLang("ru")}>
                 Рус
