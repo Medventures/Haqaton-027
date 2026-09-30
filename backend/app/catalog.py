@@ -237,7 +237,9 @@ SERVICES: list[dict] = [
         "domain": "family_support",
         "channel": "egov",
         "description": "Продление инвалидности до окончания срока справки. Результат — новая справка и выписка из ИПР в кабинете eGov.",
-        "how_to": "Подайте заявление на eGov: услуга «Установление инвалидности…», подпись ЭЦП или SMS-кодом. "
+        # TODO(verify): service name taken from egov.kz / inva.gov.kz search results; confirm the exact wording on egov.kz.
+        "how_to": "Подайте заявление на eGov: услуга «Установление инвалидности и/или степени утраты трудоспособности и/или "
+                  "определение необходимых мер социальной защиты», подпись ЭЦП или SMS-кодом. "
                   "Заключение ВКК действует не более месяца — получайте его ближе к подаче.",
         "typical_duration": "Очно — в тот же день; заочно — до 3 рабочих дней; с консультацией или очным освидетельствованием — до 10 рабочих дней",
         "required_documents": ["VKK_031", "PSYCH_FRESH", "NEURO_CONSULT", "DYNAMICS_REPORT", "IPR_UPDATED", "INSTITUTION_REPORT"],

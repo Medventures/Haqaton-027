@@ -5,6 +5,7 @@ from datetime import date, timedelta
 
 from . import config, db
 from .catalog import CHANNELS
+from .rules import date_unlock_hint
 
 STATUS_LABELS = {"locked": "заблокирован", "todo": "не начат", "in_progress": "в работе", "done": "выполнен"}
 BLOCKERS = ("missing_document", "awaiting_agency", "no_service_in_region", "family_declined", "decision_disputed")
@@ -22,6 +23,26 @@ DISPUTE_HINT = ("Если вы не согласны с решением МСЭ,
 def fmt(d: str | date) -> str:
     d = date.fromisoformat(d[:10]) if isinstance(d, str) else d
     return d.strftime("%d.%m.%Y")
+
+
+def overdue_text(days: int) -> str:
+    """«1461 дн.» reads like a bug in the demo; anything past a year is shown as «более года»."""
+    return "более года" if days > 365 else f"{days} дн."
+
+
+def unlocked_explanation(row: dict, services: dict[str, dict], unlock: date | None) -> str:
+    """Template text for a step that has just opened (no LLM): the old «what will open it» text is stale."""
+    svc = services[row["service_id"]]
+    deps = [services[d]["title"] for d in json.loads(row["depends_on"]) if d in services]
+    if deps:
+        why = "выполнен шаг " + ", ".join(f"«{t}»" for t in deps)
+    elif row["service_id"] == "SOC_MSE_REEXAM":
+        why = f"до окончания справки МСЭ осталось не больше {config.MSE_LEAD_DAYS} дней"
+    elif unlock:
+        why = f"наступила дата открытия {fmt(unlock)}"
+    else:
+        why = "условия выполнены"
+    return f"Шаг открыт: {why}. {svc['default_explanation']}"
 
 
 def overdue_days(due_date: str, status: str, today: date) -> int:
@@ -75,16 +96,20 @@ def refresh_steps(conn, case: dict, services: dict[str, dict], today: date) -> l
             r["priority"] = r["priority"] or r["base_priority"]
             if r["due_basis"] == "default":
                 r["due_date"] = (today + timedelta(days=svc["default_deadline_days"])).isoformat()
-            conn.execute("UPDATE plan_steps SET status = 'todo', priority = ?, due_date = ?, updated_at = ? WHERE id = ?",
-                         (r["priority"], r["due_date"], db.now_iso(), r["id"]))
+            r["explanation"], r["unlock_hint"] = unlocked_explanation(r, services, unlock), ""
+            conn.execute("UPDATE plan_steps SET status = 'todo', priority = ?, due_date = ?, explanation = ?, unlock_hint = '', "
+                         "updated_at = ? WHERE id = ?",
+                         (r["priority"], r["due_date"], r["explanation"], db.now_iso(), r["id"]))
             if deps and confirmed:
                 notify(conn, case["id"], r["id"], "unlocked", "curator",
                        f"Открыт шаг «{svc['title']}» ({alias}): срок {fmt(r['due_date'])}.")
         elif r["status"] == "todo" and not deps and unlock and today < unlock:
             # Шаг открылся по дате, а дату демо вернули назад — снова «предстоящий».
             r["status"], r["priority"] = "locked", None
-            conn.execute("UPDATE plan_steps SET status = 'locked', priority = NULL, updated_at = ? WHERE id = ?",
-                         (db.now_iso(), r["id"]))
+            r["unlock_hint"] = date_unlock_hint(r["service_id"], unlock, date.fromisoformat(r["due_date"]))
+            r["explanation"] = svc["default_explanation"]
+            conn.execute("UPDATE plan_steps SET status = 'locked', priority = NULL, unlock_hint = ?, explanation = ?, "
+                         "updated_at = ? WHERE id = ?", (r["unlock_hint"], r["explanation"], db.now_iso(), r["id"]))
 
     folder = db.load_case_documents(conn, case["id"], today)
     out = []
@@ -112,10 +137,10 @@ def refresh_steps(conn, case: dict, services: dict[str, dict], today: date) -> l
         if confirmed:
             if st["overdue"]:
                 notify(conn, case["id"], st["id"], "overdue", "curator",
-                       f"Просрочен шаг «{svc['title']}» ({alias}): {st['days_overdue']} дн.")
+                       f"Просрочен шаг «{svc['title']}» ({alias}): {overdue_text(st['days_overdue'])}")
             if esc:
                 notify(conn, case["id"], st["id"], "escalation", "curator",
-                       f"Эскалация: «{svc['title']}» ({alias}) просрочен на {st['days_overdue']} дн.")
+                       f"Эскалация: «{svc['title']}» ({alias}) просрочен на {overdue_text(st['days_overdue'])}")
             if st["due_soon"]:
                 notify(conn, case["id"], st["id"], "due_soon", "curator",
                        f"Скоро срок: «{svc['title']}» ({alias}) — до {fmt(st['due_date'])}.")
@@ -130,6 +155,9 @@ def refresh_steps(conn, case: dict, services: dict[str, dict], today: date) -> l
 def unlock_dependents_after_done(conn, case: dict, services: dict[str, dict], today: date, done_step: dict) -> None:
     """При выполнении шага: документы, которые он даёт, попадают в папку; зависимые шаги пересчитываются."""
     svc = services[done_step["service_id"]]
+    # The step is done, so its overdue / escalation alerts no longer need the curator's attention.
+    conn.execute("UPDATE notifications SET read = 1 WHERE step_id = ? AND type IN ('overdue', 'escalation')",
+                 (done_step["id"],))
     for doc in svc.get("produces") or []:
         db.set_case_document(conn, case["id"], doc, True, issued_at=today.isoformat(), valid_until=None, keep_dates=False)
     refresh_steps(conn, case, services, today)
@@ -151,7 +179,7 @@ def agency_letter(step: dict, case_alias: str, today: date) -> dict:
         f"Руководителю ведомства ({step['agency']}).\n\n"
         f"По межведомственному маршруту «{case_alias}» просрочен шаг «{step['title']}».\n"
         f"Ответственная организация: {step['responsible']}.\n"
-        f"Срок: {fmt(step['due_date'])}, просрочка: {step['days_overdue']} дн. (на {fmt(today)}).\n"
+        f"Срок: {fmt(step['due_date'])}, просрочка: {overdue_text(step['days_overdue'])} (на {fmt(today)}).\n"
         f"Причина: {overdue_reason(step)}.\n\n"
         f"Просим назначить исполнителя и сообщить куратору новую дату выполнения.\nКуратор семьи"
     )

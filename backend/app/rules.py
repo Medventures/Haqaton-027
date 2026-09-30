@@ -79,6 +79,19 @@ def stage_for(months: int) -> str:
     return "socialization"
 
 
+def ru_date(d: date) -> str:
+    return d.strftime("%d.%m.%Y")
+
+
+def date_unlock_hint(sid: str, opens: date, due: date) -> str:
+    """Hint for a step that opens by date. Full sentence: the UI shows it as is, without a prefix."""
+    if sid == "SOC_MSE_REEXAM":
+        return f"Станет срочным с {ru_date(opens)}: за {config.MSE_LEAD_DAYS} дней до окончания справки"
+    if sid == "MED_MCHAT":
+        return f"Откроется {ru_date(opens)}: скрининг возможен до {ru_date(due)}"
+    return f"Откроется {ru_date(opens)}"
+
+
 def _d(v) -> date | None:
     return date.fromisoformat(v) if v else None
 
@@ -162,10 +175,10 @@ def evaluate_all(p: Profile) -> dict[str, RuleResult]:
         too_early = p.months < 16
         if deps or too_early:
             if deps:
-                hint = f"после консультации педиатра, скрининг возможен до {window_end.isoformat()}"
+                hint = f"Откроется после консультации педиатра: скрининг возможен до {ru_date(window_end)}"
                 reason = "mchat_after_pediatrician"
             else:
-                hint = f"скрининг возможен с {opens.isoformat()} до {window_end.isoformat()}"
+                hint = date_unlock_hint("MED_MCHAT", opens, window_end)
                 reason = "mchat_too_early"
             out["MED_MCHAT"] = _locked("MED_MCHAT", p, "medium", reason, depends_on=deps,
                                        unlock_date=opens if too_early else None, due=window_end,
@@ -189,11 +202,12 @@ def evaluate_all(p: Profile) -> dict[str, RuleResult]:
         else:
             out["MED_MSE_REF"] = _active("MED_MSE_REF", p, "high", "mse_ref_needed")
             out["SOC_MSE"] = _locked("SOC_MSE", p, "high", "mse_after_referral", depends_on=["MED_MSE_REF"],
-                                     hint="после направления из поликлиники и заключения ВКК")
+                                     hint="Откроется после направления из поликлиники и заключения ВКК")
 
     # MED_REHAB — в каталоге, правило пока скрыто (P2).
 
     # EDU_PMPK
+    # TODO(verify): due = conclusion date + 365 days is not confirmed by the domain expert yet.
     if p.has_conclusion and p.pmpk_status in ("none", "expired"):
         due = (p.conclusion_date or t) + timedelta(days=config.PMPK_DUE_AFTER_DIAGNOSIS_DAYS)
         out["EDU_PMPK"] = _active("EDU_PMPK", p, "high", "pmpk_missing", due=due, basis="rule")
@@ -205,7 +219,7 @@ def evaluate_all(p: Profile) -> dict[str, RuleResult]:
             out["EDU_TUTOR"] = _active("EDU_TUTOR", p, "high", "tutor_needed")
         elif "EDU_PMPK" in out:
             out["EDU_TUTOR"] = _locked("EDU_TUTOR", p, "high", "tutor_after_pmpk", depends_on=["EDU_PMPK"],
-                                       hint="после заключения ПМПК")
+                                       hint="Откроется после заключения ПМПК")
     if edu == "school_regular" and p.pmpk_valid:
         out["EDU_ADAPTED_PROGRAM"] = _active("EDU_ADAPTED_PROGRAM", p, "medium", "adapted_program_needed")
     if edu == "home" and p.pmpk_valid and p.months >= 84:
@@ -227,8 +241,7 @@ def evaluate_all(p: Profile) -> dict[str, RuleResult]:
             opens = p.mse_valid_until - timedelta(days=config.MSE_LEAD_DAYS)
             out["SOC_MSE_REEXAM"] = _locked(
                 "SOC_MSE_REEXAM", p, "high", "mse_expiring_preview", unlock_date=opens, due=p.mse_valid_until,
-                basis="document_expiry",
-                hint=f"станет срочным с {opens.isoformat()}, за {config.MSE_LEAD_DAYS} дней до окончания справки")
+                basis="document_expiry", hint=date_unlock_hint("SOC_MSE_REEXAM", opens, p.mse_valid_until))
     elif p.mse_status == "expired":
         out["SOC_MSE_REEXAM"] = _active("SOC_MSE_REEXAM", p, "high", "mse_expired")
 

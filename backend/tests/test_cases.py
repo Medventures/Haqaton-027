@@ -33,7 +33,7 @@ def test_case1_plan_exact(client):
     assert ped["status"] == "todo" and ped["priority"] == "high"
     assert mchat["status"] == "locked" and mchat["depends_on"] == ["MED_PEDIATRICIAN"]
     assert mchat["priority"] != "high" and mchat["due_date"] == "2027-09-30"
-    assert mchat["unlock_hint"] == "после консультации педиатра, скрининг возможен до 2027-09-30"
+    assert mchat["unlock_hint"] == "Откроется после консультации педиатра: скрининг возможен до 30.09.2027"
     assert not any(s["overdue"] for s in steps.values())
     assert [s for s in steps.values() if s["status"] != "locked"] == [ped]
 
@@ -41,6 +41,7 @@ def test_case1_plan_exact(client):
 def test_case2_plan_exact(client):
     cid = ready_plan(client, "2")
     steps = steps_of(client, cid)
+    assert list(steps) == ["EDU_PMPK", "SOC_MSE_REEXAM", "EDU_TUTOR"]  # blocking step first, locked last
     assert set(steps) == {"EDU_PMPK", "SOC_MSE_REEXAM", "EDU_TUTOR"}
     pmpk, mse, tutor = steps["EDU_PMPK"], steps["SOC_MSE_REEXAM"], steps["EDU_TUTOR"]
     assert pmpk["status"] == "todo" and pmpk["priority"] == "high" and pmpk["overdue"] and pmpk["escalated"]
@@ -64,6 +65,13 @@ def test_lock_unlock(client):
     assert after["EDU_TUTOR"]["due_date"] == (today + timedelta(days=30)).isoformat()
     notes = client.get("/api/curator/notifications", headers=CURATOR).json()["items"]
     assert any(n["type"] == "unlocked" and n["step_id"] == tutor["id"] for n in notes)
+    # The opened step gets a template explanation instead of the stale «what will open it» text.
+    assert after["EDU_TUTOR"]["explanation"].startswith("Шаг открыт: выполнен шаг «Обследование на ПМПК».")
+    assert after["EDU_TUTOR"]["unlock_hint"] == ""
+    # Alerts about the finished step are marked as read.
+    pmpk_id = steps["EDU_PMPK"]["id"]
+    pmpk_alerts = [n for n in notes if n["step_id"] == pmpk_id and n["type"] in ("overdue", "escalation")]
+    assert pmpk_alerts and all(n["read"] for n in pmpk_alerts)
     # ПМПК выполнена → заключение ПМПК появилось в папке, у тьютора документ есть.
     assert all(d["have"] for d in after["EDU_TUTOR"]["documents"])
 
@@ -75,7 +83,7 @@ def test_case3_locked_before_lead(client):
     s = steps["SOC_MSE_REEXAM"]
     assert s["status"] == "locked" and s["priority"] is None
     assert s["due_date"] == "2026-11-10" and s["unlock_date"] == "2026-10-11"
-    assert s["unlock_hint"] == "станет срочным с 2026-10-11, за 30 дней до окончания справки"
+    assert s["unlock_hint"] == "Станет срочным с 11.10.2026: за 30 дней до окончания справки"
     assert not s["overdue"] and s["indicator"] == "locked"
 
 
@@ -94,9 +102,15 @@ def test_case3_due_soon_after_shift(client):
     assert [(n["type"], n["audience"]) for n in mine] == [("due_soon", "curator")]
     assert [(n["type"], n["audience"]) for n in parent_notes] == [("due_soon", "parent")]
     assert parent_notes[0]["message"] == "Срок справки МСЭ истекает 10.11.2026: соберите документы"
+    # The step opened by date: the explanation says so, the lock hint is gone.
+    assert s["explanation"].startswith("Шаг открыт: до окончания справки МСЭ осталось не больше 30 дней.")
+    assert s["unlock_hint"] == ""
     # Дату вернули — шаг снова «предстоящий».
     client.post("/api/settings/demo-today", json={"date": "2026-09-30"}, headers=CURATOR)
-    assert steps_of(client, cid)["SOC_MSE_REEXAM"]["status"] == "locked"
+    back = steps_of(client, cid)["SOC_MSE_REEXAM"]
+    assert back["status"] == "locked"
+    assert back["unlock_hint"] == "Станет срочным с 11.10.2026: за 30 дней до окончания справки"
+    assert not back["explanation"].startswith("Шаг открыт")
 
 
 def test_case3_help_checklist(client):

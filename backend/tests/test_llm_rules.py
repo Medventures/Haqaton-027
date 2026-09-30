@@ -122,7 +122,9 @@ def test_llm_plan_texts(client, fake_llm):
     assert v["plan_meta"]["source"] == "llm"
     steps = {s["service_id"]: s for s in v["steps"]}
     assert set(steps) == EXPECTED["2"]
-    assert steps["EDU_PMPK"]["priority"] == "medium"  # приоритет от модели
+    assert steps["SOC_MSE_REEXAM"]["priority"] == "medium"  # приоритет от модели
+    assert steps["EDU_PMPK"]["priority"] == "high"  # tutor waits for it: code forces high over the model
+    assert [s["service_id"] for s in v["steps"]] == ["EDU_PMPK", "SOC_MSE_REEXAM", "EDU_TUTOR"]
     assert steps["EDU_TUTOR"]["priority"] is None  # locked — без приоритета
     assert steps["EDU_PMPK"]["explanation"] == "Этот шаг открывает следующий этап маршрута."
 
@@ -202,7 +204,7 @@ def test_handoff(client):
         assert key in h, key
     assert h["case"]["stage"] == "socialization" and h["case"]["stage_label"] == "Социализация"
     locked = [s for s in h["pending"] if s["status"] == "locked"]
-    assert locked and locked[0]["unlock_hint"] == "после заключения ПМПК"
+    assert locked and locked[0]["unlock_hint"] == "Откроется после заключения ПМПК"
     assert {s["service_id"] for s in h["overdue"]} == {"EDU_PMPK", "SOC_MSE_REEXAM"}
     assert "Выписка или заключение врача" in h["documents"]["have"]
     assert set(h["coverage_by_domain"]) == set(DOMAINS)
@@ -234,3 +236,19 @@ def test_translation_cache_and_fallback(client, fake_llm):
     fake_llm(lambda *a: LLMError("down"))
     assert client.post("/api/i18n/translate", json={"texts": ["Новое"]}).json()["translations"] == {}
     assert client.post("/api/i18n/translate", json={"lang": "en", "texts": ["x"]}).status_code == 422
+
+
+def test_overdue_text():
+    from app.tracking import overdue_text
+
+    assert overdue_text(5) == "5 дн."
+    assert overdue_text(365) == "365 дн."
+    assert overdue_text(1461) == "более года"
+
+
+def test_overdue_notification_over_a_year(client):
+    cid = ready_plan(client, "2")
+    pmpk = steps_of(client, cid)["EDU_PMPK"]
+    notes = client.get("/api/curator/notifications", headers=CURATOR).json()["items"]
+    msgs = [n["message"] for n in notes if n["step_id"] == pmpk["id"] and n["type"] in ("overdue", "escalation")]
+    assert msgs and all("более года" in m and "1461" not in m for m in msgs)

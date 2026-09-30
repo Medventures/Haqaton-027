@@ -155,11 +155,27 @@ def owner_for(service: dict, slots: dict) -> str:
     return service["responsible"]
 
 
+def blocking_ids(expected: dict[str, RuleResult]) -> set[str]:
+    """Steps that a locked step waits for: they always get high priority, whatever the model said."""
+    return {d for r in expected.values() if r.state == "locked" for d in r.depends_on if d in expected}
+
+
 def build_rows(expected: dict[str, RuleResult], texts: dict, services: dict[str, dict], p: Profile) -> list[dict]:
-    """Код проставляет ответственного, срок, статус, зависимости и блокер по городу."""
+    """Код проставляет ответственного, срок, статус, зависимости и блокер по городу.
+
+    Order: high-priority and overdue steps first, blocking steps first among them, locked steps last.
+    """
     order = {sid: i for i, sid in enumerate(services)}
-    active = sorted((sid for sid, r in expected.items() if r.state == "active"),
-                    key=lambda sid: (PRIORITY_ORDER[texts[sid]["priority"] or "low"], order[sid]))
+    blocking = blocking_ids(expected)
+    prio = {sid: "high" if sid in blocking and r.state == "active" else texts[sid]["priority"]
+            for sid, r in expected.items()}
+
+    def rank(sid: str) -> tuple:
+        r = expected[sid]
+        urgent = prio[sid] == "high" or r.due_date < p.today
+        return (not urgent, sid not in blocking, PRIORITY_ORDER[prio[sid] or "low"], order[sid])
+
+    active = sorted((sid for sid, r in expected.items() if r.state == "active"), key=rank)
     locked = [sid for sid, r in expected.items() if r.state == "locked"]
     rows = []
     for pos, sid in enumerate(active + locked, start=1):
@@ -169,7 +185,7 @@ def build_rows(expected: dict[str, RuleResult], texts: dict, services: dict[str,
         rows.append({
             "position": pos,
             "service_id": sid,
-            "priority": texts[sid]["priority"],
+            "priority": prio[sid],
             "base_priority": r.base_priority,
             "owner": owner_for(svc, p.slots),
             "due_date": r.due_date.isoformat(),
