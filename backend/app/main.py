@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from . import config, db, gov, i18n, llm
+from . import urgent_texts as ut
 from . import interview as iv
 from .catalog import (
     CHANNELS, DOMAIN_LABELS, QUESTIONS_BY_ID, SCENARIOS, SLOT_LABELS, STAGES,
@@ -96,7 +97,8 @@ def save_interview(conn, c: dict) -> None:
     slots = iv.slots_from(items)
     profile = {**slots, "_short": (c["profile"] or {}).get("_short", {})}
     flags = iv.red_flags_of(slots)
-    alert = bool(flags)
+    # An open urgent request (safety / regression) keeps the alert until the curator resolves it.
+    alert = bool(flags) or (c["alert"] and urgent_open(conn, c["id"]))
     mode = "curator" if iv.barriers_of(slots) else "system"
     conn.execute(
         "UPDATE cases SET interview_json = ?, profile = ?, alert = ?, handling_mode = ?, summary_confirmed = ? WHERE id = ?",
@@ -190,11 +192,27 @@ def case_view(conn, c: dict, role: Role, today: date) -> dict:
     return out
 
 
+def with_kind(n: dict) -> dict:
+    """Urgent requests are red_flag notifications; their kind is kept in the dedup key."""
+    parts = n.get("dedup_key", "").split(":")
+    n["kind"] = parts[2] if len(parts) > 3 and parts[1] == "urgent" else None
+    n["kind_label"] = ut.KIND_LABELS.get(n["kind"] or "")
+    return n
+
+
 def notifications_for(conn, case_id: int, audience: str) -> list[dict]:
     rows = conn.execute(
         "SELECT * FROM notifications WHERE case_id = ? AND audience = ? ORDER BY id DESC", (case_id, audience)
     ).fetchall()
-    return [dict(r) for r in rows]
+    return [with_kind(dict(r)) for r in rows]
+
+
+def urgent_open(conn, case_id: int) -> bool:
+    kinds = tuple(f"{case_id}:urgent:{k}:%" for k in ut.ALERT_KINDS)
+    return conn.execute(
+        f"SELECT 1 FROM notifications WHERE case_id = ? AND type = 'red_flag' AND read = 0 AND "
+        f"({' OR '.join('dedup_key LIKE ?' for _ in kinds)})", (case_id, *kinds)
+    ).fetchone() is not None
 
 
 def insert_row(conn, case_id: int, r: dict) -> None:
@@ -794,6 +812,66 @@ def step_help(step_id: int, role: Role = Depends(get_role)):
     return help_
 
 
+# ---------- срочная помощь (без LLM) ----------
+
+
+class UrgentIn(BaseModel):
+    kind: Literal["safety", "regression", "benefit_stopped", "need_help"]
+    note: str | None = Field(default=None, max_length=5000)
+
+
+def nearest_step(steps: list[dict]) -> dict | None:
+    """Active step to show next: the most important overdue one, otherwise the one with the closest due date."""
+    active = [s for s in steps if s["status"] in ("todo", "in_progress")]
+    if not active:
+        return None
+    overdue = [s for s in active if s["overdue"]]
+    if overdue:
+        best = min(overdue, key=lambda s: (PRIORITY_ORDER.get(s["priority"] or "low", 2), -s["days_overdue"], s["position"]))
+    else:
+        best = min(active, key=lambda s: (s["due_date"], s["position"]))
+    indicator = "overdue" if best["indicator"] == "escalated" else best["indicator"]
+    return {"id": best["id"], "title": best["title"], "due_date": best["due_date"], "indicator": indicator}
+
+
+@app.get("/api/urgent/options")
+def urgent_options():
+    return {"top_text": ut.TOP_TEXT, "phones": ut.PHONES,
+            "kinds": [{"kind": k, "label": ut.KIND_LABELS[k]} for k in ut.KINDS], "note_max": ut.NOTE_MAX}
+
+
+@app.post("/api/cases/{case_id}/urgent")
+def urgent(case_id: int, body: UrgentIn, role: Role = Depends(get_role)):
+    """Family asks for urgent help: fixed text, curator notification, nearest step. The LLM is never called."""
+    note = " ".join((body.note or "").split())[:ut.NOTE_MAX]
+    with case_lock(case_id), db.tx() as conn:
+        c = load_case(conn, case_id)
+        today = db.get_today(conn)
+        if body.kind in ut.ALERT_KINDS and not c["alert"]:
+            conn.execute("UPDATE cases SET alert = 1 WHERE id = ?", (case_id,))
+        key = f"{case_id}:urgent:{body.kind}:{today.isoformat()}"
+        conn.execute(
+            "INSERT OR IGNORE INTO notifications (case_id, step_id, type, audience, message, dedup_key, created_at) "
+            "VALUES (?, NULL, 'red_flag', 'curator', ?, ?, ?)",
+            (case_id, ut.curator_message(body.kind, c["child_alias"], note), key, db.now_iso()),
+        )
+        db.audit(conn, case_id, f"urgent:{body.kind}", role)
+        steps = refresh_steps(conn, c, db.load_services(conn), today) if c["status"] == "confirmed" else []
+    return {"kind": body.kind, "text": ut.TEXTS[body.kind], "top_text": ut.TOP_TEXT, "curator_notified": True,
+            "nearest_step": nearest_step(steps)}
+
+
+@app.post("/api/cases/{case_id}/urgent/resolve")
+def urgent_resolve(case_id: int, role: Role = Depends(require_curator)):
+    """Curator handled the request: the alert is cleared and urgent notifications are marked as read."""
+    with case_lock(case_id), db.tx() as conn:
+        load_case(conn, case_id)
+        conn.execute("UPDATE cases SET alert = 0 WHERE id = ?", (case_id,))
+        conn.execute("UPDATE notifications SET read = 1 WHERE case_id = ? AND type = 'red_flag'", (case_id,))
+        db.audit(conn, case_id, "urgent_resolved", role)
+    return {"ok": True, "alert": False}
+
+
 # ---------- куратор ----------
 
 
@@ -858,7 +936,7 @@ def curator_notifications(_: Role = Depends(require_curator)):
             """SELECT n.*, c.child_alias AS case_alias FROM notifications n JOIN cases c ON c.id = n.case_id
                WHERE n.audience = 'curator' ORDER BY n.read, n.id DESC"""
         ).fetchall()
-    items = [dict(r) for r in rows]
+    items = [with_kind(dict(r)) for r in rows]
     return {"unread": sum(1 for n in items if not n["read"]), "items": items}
 
 
