@@ -4,7 +4,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
 
-from . import config
+from . import config, providers
 from .catalog import DOC_TYPES, SCENARIOS, SERVICES
 
 SCHEMA_VERSION = 3
@@ -162,6 +162,7 @@ def init_db() -> None:
             "CREATE TABLE IF NOT EXISTS ask_log (id INTEGER PRIMARY KEY AUTOINCREMENT, case_id INTEGER NOT NULL, "
             "at TEXT NOT NULL, message TEXT NOT NULL, answer TEXT NOT NULL, step_ids TEXT NOT NULL, source TEXT NOT NULL)"
         )
+        providers.ensure(conn)
         if conn.execute("SELECT COUNT(*) FROM cases").fetchone()[0] == 0:
             seed_cases(conn)
             set_demo_today(conn, date.fromisoformat(config.DEMO_SEED_TODAY))

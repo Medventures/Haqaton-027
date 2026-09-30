@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from . import ask as ak
-from . import config, db, faq, gov, guards, i18n, llm
+from . import config, db, faq, gov, guards, i18n, llm, providers
 from . import urgent_texts as ut
 from . import interview as iv
 from .catalog import (
@@ -168,6 +168,8 @@ def strip_for_parent(step: dict) -> dict:
 def case_view(conn, c: dict, role: Role, today: date) -> dict:
     services = db.load_services(conn)
     steps = refresh_steps(conn, c, services, today)
+    for s in steps:
+        s["where_to_get"] = providers.where_to_get(conn, c["city"], s["service_id"])
     out = case_summary(c, steps, today)
     out["intake"] = c["intake"]
     out["interview"] = {"items": c["interview"]["items"], "done": c["interview"]["done"],
@@ -878,6 +880,18 @@ def urgent_resolve(case_id: int, role: Role = Depends(require_curator)):
         conn.execute("UPDATE notifications SET read = 1 WHERE case_id = ? AND type = 'red_flag'", (case_id,))
         db.audit(conn, case_id, "urgent_resolved", role)
     return {"ok": True, "alert": False}
+
+
+# ---------- «Услуги»: справочник организаций (демо) ----------
+
+
+@app.get("/api/providers")
+def list_providers(city: str | None = None, type: Literal["club", "speech_therapist", "defectologist", "center"] | None = None,
+                   service_id: str | None = None):
+    """Demo directory, alphabetical. Filters only by city, type and catalog service; no ratings, no personalisation."""
+    with db.tx() as conn:
+        return {"providers": providers.search(conn, city, type, service_id), "cities": providers.cities(conn),
+                "types": providers.TYPES}
 
 
 # ---------- FAQ (без LLM) ----------
