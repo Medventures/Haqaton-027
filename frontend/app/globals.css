@@ -1898,12 +1898,12 @@ textarea.input {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--urgent);
+  background: var(--accent);
   color: #fff;
-  box-shadow: 0 6px 20px rgba(180, 35, 24, 0.35);
+  box-shadow: 0 6px 20px rgba(22, 97, 92, 0.35);
 }
 .fab-help:hover {
-  background: var(--crit-text);
+  background: var(--accent-hover);
 }
 .urgent-panel {
   position: fixed;
