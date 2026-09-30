@@ -35,7 +35,9 @@
 
 ## Демо
 
-<!-- Добавить: HTTPS-ссылку на демо, ссылку на запасное видео, скриншоты из docs/screenshots. -->
+**Демо:** https://aqylroute.com
+
+<!-- Добавить: ссылку на запасное видео, скриншоты из docs/screenshots. -->
 
 Три синтетических кейса — три этапа маршрута. Сценарий (около 60 секунд):
 
@@ -80,6 +82,30 @@ make test      # pytest (35 тестов) + проверка типов TypeScri
 возвращает валидный JSON ровно с набором шагов, который определил код, и без стоп-слов. Результат на `gpt-6-luna`
 (30.09.2026): 10/10 — валидный JSON, набор шагов совпал с кодом, 0 предупреждений, fallback не понадобился; 7–11 секунд на план.
 
+### Деплой на сервер (без Docker)
+
+Сервер: Ubuntu 24.04, Python 3.12, Node.js 22, nginx, pm2; домен за Cloudflare. Файлы — в папке `deploy/`:
+
+| Файл | Назначение |
+|---|---|
+| `deploy/deploy.sh` | обновление: `git pull`, зависимости, сборка фронтенда (standalone), перезапуск pm2, проверка |
+| `deploy/ecosystem.config.js` | pm2: `aqyl-api` (uvicorn, один воркер на 127.0.0.1:8000) и `aqyl-web` (Next.js на 127.0.0.1:3000) |
+| `deploy/nginx-aqylroute.conf` | nginx: прокси `aqylroute.com` → Next.js; `/api` Next.js проксирует в FastAPI |
+
+Первый запуск на сервере:
+
+```bash
+git clone https://github.com/hackathonteamqaz/AqylRoute-AI.git /var/www/aqylroute
+cd /var/www/aqylroute && cp .env.example .env   # заполнить OPENAI_API_KEY; файл не коммитится
+./deploy/deploy.sh
+cp deploy/nginx-aqylroute.conf /etc/nginx/sites-available/aqylroute
+ln -s /etc/nginx/sites-available/aqylroute /etc/nginx/sites-enabled/ && nginx -t && systemctl reload nginx
+pm2 startup systemd && pm2 save                  # автозапуск после перезагрузки
+```
+
+Обновление: `cd /var/www/aqylroute && ./deploy/deploy.sh`. HTTPS — сертификат Let's Encrypt (`certbot --nginx`) на
+сервере и Cloudflare в режиме SSL Full (strict).
+
 ## Структура проекта
 
 ```
@@ -100,6 +126,7 @@ frontend/                Next.js (TypeScript)
   app/curator/           панель куратора, карточка дела, «Передача дела»
   app/api/[...path]/     прокси /api → FastAPI
   components/, lib/      карточка шага, «Помощь семье», папка документов, типы, клиент API
+deploy/                  деплой на сервер: скрипт обновления, pm2, nginx
 docs/                    архитектура и скриншоты
 Makefile, dev.sh         установка, запуск, тесты
 ```
@@ -119,7 +146,8 @@ Makefile, dev.sh         установка, запуск, тесты
 - [x] Единая папка документов: отметка один раз — обновляются все шаги
 - [x] «Передача дела» с этапом маршрута и сохранением в PDF, только для куратора
 - [x] 35 автотестов, включая эталонные планы трёх кейсов
-- [ ] Публичная HTTPS-ссылка (разворачивается на сервере)
+- [x] Сервер развёрнут (Hetzner, pm2 + nginx, домен aqylroute.com за Cloudflare)
+- [ ] HTTPS-сертификат на сервере (Let's Encrypt)
 - [ ] Справочная карточка «виды помощи», медицинская реабилитация, поиск организаций, казахский язык, паспорт ребёнка (P2)
 
 Ограничения: данные только синтетические; справочник услуг неполный, правила и сроки (например, срок ПМПК после
