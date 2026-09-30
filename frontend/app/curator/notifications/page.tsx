@@ -39,6 +39,12 @@ export default function CuratorNotificationsPage() {
     refreshShell();
   }
 
+  async function resolve(caseId: number) {
+    await api("curator", `/cases/${caseId}/urgent/resolve`, { method: "POST" });
+    await load();
+    refreshShell();
+  }
+
   if (!data) return <div className="hint">Загрузка…</div>;
 
   return (
@@ -56,7 +62,7 @@ export default function CuratorNotificationsPage() {
         <div key={n.id} className={`reminder ${TYPE[n.type][1] === "crit" || TYPE[n.type][1] === "urgent" ? "crit" : TYPE[n.type][1] === "warn" ? "warn" : ""}`}
           style={{ opacity: n.read ? 0.6 : 1 }}>
           <div className="row between wrap gap-sm">
-            <Chip tone={TYPE[n.type][1]}>{TYPE[n.type][0]}</Chip>
+            <Chip tone={TYPE[n.type][1]}>{n.kind ? `Срочно: ${n.kind_label}` : TYPE[n.type][0]}</Chip>
             <span className="hint">
               {n.case_alias} · {fmtDateTime(n.created_at)}
             </span>
@@ -66,7 +72,12 @@ export default function CuratorNotificationsPage() {
             <Link href={`/curator/cases/${n.case_id}`} className="link-btn" onClick={() => !n.read && markRead([n.id])}>
               Открыть дело
             </Link>
-            {!n.read && (
+            {!n.read && n.kind && (
+              <button className="link-btn" onClick={() => resolve(n.case_id)}>
+                Обработано
+              </button>
+            )}
+            {!n.read && !n.kind && (
               <button className="link-btn" onClick={() => markRead([n.id])}>
                 Прочитано
               </button>

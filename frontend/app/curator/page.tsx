@@ -67,6 +67,15 @@ export default function CuratorDashboard() {
     await load();
   }
 
+  async function resolveUrgent(caseId: number) {
+    try {
+      await api("curator", `/cases/${caseId}/urgent/resolve`, { method: "POST" });
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   const [preparing, setPreparing] = useState(false);
   const [ask, setAsk] = useState<"reset" | "prepare" | null>(null);
   const closeAsk = useCallback(() => setAsk(null), []);
@@ -188,12 +197,20 @@ export default function CuratorDashboard() {
           <ul className="notif-list">
             {notes?.items.slice(0, 12).map((n) => (
               <li key={n.id} className={n.read ? "read" : ""}>
-                <Chip tone={NOTIF[n.type][1]}>{NOTIF[n.type][0]}</Chip>
+                <Chip tone={NOTIF[n.type][1]}>{n.kind ? "Срочно" : NOTIF[n.type][0]}</Chip>
                 <div>
+                  {n.kind_label && <div className="small" style={{ fontWeight: 600 }}>{n.kind_label}</div>}
                   <Link href={`/curator/cases/${n.case_id}`} onClick={() => !n.read && markRead([n.id])}>
                     {n.message}
                   </Link>
-                  <div className="muted small">{fmtDateTime(n.created_at)}</div>
+                  <div className="row gap-sm wrap">
+                    <span className="muted small">{fmtDateTime(n.created_at)}</span>
+                    {n.kind && !n.read && (
+                      <button className="link-btn small" onClick={() => resolveUrgent(n.case_id)}>
+                        Обработано
+                      </button>
+                    )}
+                  </div>
                 </div>
               </li>
             ))}

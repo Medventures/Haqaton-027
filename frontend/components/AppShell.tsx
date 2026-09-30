@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useApp } from "@/lib/app-context";
 import { STAGE_LABEL, fmtDate } from "@/lib/format";
 import { remindersFor } from "@/lib/reminders";
+import { FloatingHelp } from "./FloatingHelp";
 import { Translator } from "./Translator";
 import type { CaseView, Role, Stage } from "@/lib/types";
 
@@ -258,6 +259,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <main className="content">{children}</main>
         <Translator lang={lang} />
+        {caseId !== null && caseRole === "parent" && <FloatingHelp caseId={caseId} />}
         <footer className="content-foot">Все данные синтетические. Система не ставит диагнозы и не даёт медицинских рекомендаций.</footer>
       </div>
     </div>

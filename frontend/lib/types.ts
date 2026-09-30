@@ -151,6 +151,25 @@ export interface AppNotification {
   created_at: string;
   read: number;
   case_alias?: string;
+  kind: UrgentKind | null;
+  kind_label: string | null;
+}
+
+export type UrgentKind = "safety" | "regression" | "benefit_stopped" | "need_help";
+
+export interface UrgentOptions {
+  top_text: string;
+  phones: { number: string; label: string }[];
+  kinds: { kind: UrgentKind; label: string }[];
+  note_max: number;
+}
+
+export interface UrgentResult {
+  kind: UrgentKind;
+  text: string;
+  top_text: string;
+  curator_notified: boolean;
+  nearest_step: { id: number; title: string; due_date: string; indicator: string } | null;
 }
 
 export interface PlanMeta {

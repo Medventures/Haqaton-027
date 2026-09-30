@@ -57,6 +57,14 @@ export const AUDIT_LABEL: Record<string, string> = {
   handoff_exported: "Передача дела экспортирована",
   summary_confirmed: "Сводка интервью подтверждена",
   red_flag: "Красный флаг в интервью",
+  urgent_resolved: "Срочное обращение обработано",
+};
+
+const URGENT_KIND_LABEL: Record<string, string> = {
+  safety: "опасность",
+  regression: "резкие изменения в состоянии",
+  benefit_stopped: "остановили выплату или услугу",
+  need_help: "нужна помощь куратора",
 };
 
 export function auditLabel(action: string): string {
@@ -65,6 +73,7 @@ export function auditLabel(action: string): string {
   if (kind === "plan_generated") return `План сформирован (${SOURCE_LABEL[arg]?.split(" (")[0] ?? arg})`;
   if (kind === "step_added") return `Добавлен шаг: ${arg}`;
   if (kind === "step_removed") return `Удалён шаг: ${arg}`;
+  if (kind === "urgent") return `Срочное обращение семьи: ${URGENT_KIND_LABEL[arg] ?? arg}`;
   if (kind === "step_done") return `Выполнен шаг: ${arg}`;
   if (kind === "document_on") return `Документ отмечен: ${arg}`;
   if (kind === "document_off") return `Документ снят: ${arg}`;

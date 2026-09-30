@@ -68,7 +68,7 @@ export function StepCard({ step, role, editable, onPatch, onDelete, onToggleDoc,
   const haveCount = required.filter((d) => d.have).length;
 
   return (
-    <article className={`step ind-${step.indicator}`}>
+    <article id={`step-${step.id}`} className={`step ind-${step.indicator}`}>
       <div className="step-top">
         <span className="step-num" aria-hidden>
           {step.status === "done" ? "✓" : locked ? "🔒" : step.position}

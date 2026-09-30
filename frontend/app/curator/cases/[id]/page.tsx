@@ -95,6 +95,7 @@ export default function CuratorCasePage() {
   const resetCase = () => confirm("Сбросить интервью и план этого кейса?") && run("reset", () => api("curator", `/cases/${id}/reset`, { method: "POST" }));
   const regenerateConfirmed = () =>
     confirm("Пересобрать подтверждённый план? Статусы сбросятся, семья не увидит план до повторного подтверждения.") && generate(true);
+  const resolveUrgent = () => run("resolve", () => api("curator", `/cases/${id}/urgent/resolve`, { method: "POST" }));
   const addStep = () =>
     addId &&
     run("add", async () => {
@@ -118,6 +119,7 @@ export default function CuratorCasePage() {
 
   if (!c || !settings) return error ? <div className="alert alert-error">{error}</div> : <div className="card muted">Загрузка…</div>;
 
+  const urgent = c.notifications.filter((n) => n.kind && !n.read);
   const answered = c.interview.items.filter((i) => i.answer !== null && i.qid !== "12");
   const meta = c.plan_meta;
   const inPlan = new Set(c.steps.map((s) => s.service_id));
@@ -134,9 +136,20 @@ export default function CuratorCasePage() {
             Родился {fmtDate(c.birth_date)} · {c.city} · язык: {LANGUAGE_LABEL[c.language]} ·{" "}
             {c.handling_mode === "curator" ? "ведёт куратор (у семьи есть препятствия)" : "ведёт система"}
           </p>
-          {c.red_flag_text && (
-            <div className="alert alert-crit">
-              ⚠ Красный флаг в интервью. Семье показан текст: «{c.red_flag_text}» Свяжитесь с семьёй и врачом.
+          {c.alert && (
+            <div className="alert alert-crit stack-sm">
+              {urgent.length > 0 ? (
+                <span>
+                  ⚠ Срочное обращение семьи: {urgent.map((n) => n.kind_label).join("; ")}. Свяжитесь с семьёй.
+                </span>
+              ) : (
+                <span>⚠ Красный флаг в интервью. Семье показан текст: «{c.red_flag_text}» Свяжитесь с семьёй и врачом.</span>
+              )}
+              <div>
+                <button className="btn btn-sm" disabled={!!busy} onClick={resolveUrgent}>
+                  Обработано
+                </button>
+              </div>
             </div>
           )}
         </div>
