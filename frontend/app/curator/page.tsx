@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { AgencyBadge, AlertBadge, Chip, type Tone, BlockerBadge, CaseStatusBadge, EscalatedBadge, PriorityBadge, StageBadge } from "@/components/Badges";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { HelpPanel } from "@/components/HelpPanel";
 import { api } from "@/lib/api";
 import { useApp, usePageMeta } from "@/lib/app-context";
-import { STATUS_LABEL, fmtDate, fmtDateTime } from "@/lib/format";
+import { STATUS_LABEL, fmtDate, fmtDateTime, overdueLabel } from "@/lib/format";
 import type { AppNotification, CaseSummary, OverdueResponse, StepStatus } from "@/lib/types";
 
 const NOTIF: Record<AppNotification["type"], [string, Tone]> = {
@@ -66,22 +67,19 @@ export default function CuratorDashboard() {
     await load();
   }
 
-  async function resetDemo() {
-    if (!confirm("Сбросить демо? Все кейсы вернутся в исходное состояние, дата — 30.09.2026.")) return;
-    await api("curator", "/demo/reset", { method: "POST" });
-    location.reload();
-  }
-
   const [preparing, setPreparing] = useState(false);
-  async function prepareDemo() {
-    if (!confirm("Подготовить демо? Все кейсы будут сброшены, у семей 2 и 3 появятся подтверждённые планы. Займёт до 30 секунд.")) return;
+  const [ask, setAsk] = useState<"reset" | "prepare" | null>(null);
+  const closeAsk = useCallback(() => setAsk(null), []);
+
+  async function runDemo(kind: "reset" | "prepare") {
     setPreparing(true);
     try {
-      await api("curator", "/demo/prepare", { method: "POST", body: {} });
+      await api("curator", kind === "reset" ? "/demo/reset" : "/demo/prepare", { method: "POST", body: kind === "prepare" ? {} : undefined });
       location.reload();
     } catch (e) {
       setError((e as Error).message);
       setPreparing(false);
+      setAsk(null);
     }
   }
 
@@ -93,15 +91,28 @@ export default function CuratorDashboard() {
       <div className="row wrap gap-sm" style={{ justifyContent: "flex-end" }}>
         {settings?.demo_mode && (
           <>
-            <button className="btn btn-sm btn-demo" disabled={preparing} onClick={prepareDemo}>
+            <button className="btn btn-sm btn-demo" disabled={preparing} onClick={() => setAsk("prepare")}>
               {preparing ? "Готовим планы…" : "Демо: готовые планы (семьи 2 и 3)"}
             </button>
-            <button className="btn btn-ghost btn-sm" disabled={preparing} onClick={resetDemo}>
+            <button className="btn btn-ghost btn-sm" disabled={preparing} onClick={() => setAsk("reset")}>
               Сбросить демо
             </button>
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={ask !== null}
+        title={ask === "reset" ? "Сбросить демо?" : "Подготовить демо?"}
+        text={ask === "reset"
+          ? "Все кейсы вернутся в исходное состояние, созданные кейсы удалятся, дата — 30.09.2026."
+          : "Все кейсы будут сброшены, у семей 2 и 3 появятся подтверждённые планы. Займёт до 30 секунд."}
+        confirmLabel={preparing ? "Подождите…" : ask === "reset" ? "Сбросить" : "Подготовить"}
+        danger={ask === "reset"}
+        busy={preparing}
+        onConfirm={() => ask && runDemo(ask)}
+        onCancel={closeAsk}
+      />
 
       {error && <div className="alert alert-error">{error}</div>}
 
@@ -232,7 +243,7 @@ export default function CuratorDashboard() {
                       </td>
                       <td className="nowrap">{fmtDate(s.due_date)}</td>
                       <td className="nowrap">
-                        <b className="text-danger">{s.days_overdue} дн.</b>
+                        <b className="text-danger">{overdueLabel(s.days_overdue)}</b>
                         {s.escalated && (
                           <div className="mt-xs">
                             <EscalatedBadge />

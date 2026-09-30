@@ -1847,3 +1847,40 @@ textarea.input {
   border-radius: 999px;
   box-shadow: var(--shadow-sm);
 }
+
+/* модальное окно подтверждения */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(23, 32, 43, 0.4);
+}
+.modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 440px;
+  max-width: 100%;
+  padding: 24px;
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: 0 12px 40px rgba(23, 32, 43, 0.25);
+}
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+}
+.btn-danger {
+  background: var(--crit);
+  border-color: var(--crit);
+  color: #fff;
+  font-weight: 600;
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--crit-text);
+  color: #fff;
+}
