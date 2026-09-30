@@ -72,6 +72,19 @@ export default function CuratorDashboard() {
     location.reload();
   }
 
+  const [preparing, setPreparing] = useState(false);
+  async function prepareDemo() {
+    if (!confirm("Подготовить демо? Все кейсы будут сброшены, у семей 2 и 3 появятся подтверждённые планы. Займёт до 30 секунд.")) return;
+    setPreparing(true);
+    try {
+      await api("curator", "/demo/prepare", { method: "POST", body: {} });
+      location.reload();
+    } catch (e) {
+      setError((e as Error).message);
+      setPreparing(false);
+    }
+  }
+
   const awaiting = cases?.filter((c) => c.status === "awaiting_curator").length ?? 0;
   const alerts = cases?.filter((c) => c.alert).length ?? 0;
 
@@ -79,9 +92,14 @@ export default function CuratorDashboard() {
     <div className="stack-lg">
       <div className="row wrap gap-sm" style={{ justifyContent: "flex-end" }}>
         {settings?.demo_mode && (
-          <button className="btn btn-ghost btn-sm" onClick={resetDemo}>
-            Сбросить демо
-          </button>
+          <>
+            <button className="btn btn-sm btn-demo" disabled={preparing} onClick={prepareDemo}>
+              {preparing ? "Готовим планы…" : "Демо: готовые планы (семьи 2 и 3)"}
+            </button>
+            <button className="btn btn-ghost btn-sm" disabled={preparing} onClick={resetDemo}>
+              Сбросить демо
+            </button>
+          </>
         )}
       </div>
 

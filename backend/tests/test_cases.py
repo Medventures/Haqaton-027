@@ -264,3 +264,19 @@ def test_gov_sync_demo(client):
     run_interview(client, cid, "2")
     client.post(f"/api/cases/{cid}/plan/generate", headers=PARENT)
     assert set(steps_of(client, cid)) == {"EDU_PMPK", "SOC_MSE_REEXAM", "EDU_TUTOR"}
+
+
+def test_demo_prepare_and_helper_routes(client):
+    assert client.post("/api/demo/prepare", headers=PARENT).status_code == 403
+    r = client.post("/api/demo/prepare", json={}, headers=CURATOR).json()
+    got = {p["scenario"]: set(p["steps"]) for p in r["prepared"]}
+    assert got == {"2": {"EDU_PMPK", "SOC_MSE_REEXAM", "EDU_TUTOR"}, "3": {"SOC_MSE_REEXAM"}}
+    cases = {c["scenario"]: c for c in client.get("/api/curator/cases", headers=CURATOR).json()["cases"]}
+    assert cases["2"]["status"] == cases["3"]["status"] == "confirmed" and cases["1"]["status"] == "draft"
+    cid2 = cases["2"]["id"]
+    plan = client.get(f"/api/cases/{cid2}/plan", headers=PARENT).json()
+    assert plan["plan_visible"] and len(plan["steps"]) == 3
+    notes = client.get(f"/api/cases/{cid2}/notifications", headers=CURATOR).json()["items"]
+    assert any(n["type"] == "escalation" for n in notes)
+    assert client.get("/api/openapi.json").status_code == 200
+    assert client.get("/api/docs").status_code == 200

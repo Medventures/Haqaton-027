@@ -32,7 +32,14 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="AqylRoute AI", version="0.3.0", lifespan=lifespan)
+app = FastAPI(
+    title="AqylRoute AI",
+    version="0.3.0",
+    lifespan=lifespan,
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
+    redoc_url=None,
+)
 app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
 
 _case_locks: dict[int, threading.Lock] = {}
@@ -889,3 +896,46 @@ def case_audit(case_id: int, _: Role = Depends(require_curator)):
 def demo_reset(_: Role = Depends(require_curator), __: None = Depends(require_demo)):
     db.reset_demo()
     return {"ok": True}
+
+
+class PrepareIn(BaseModel):
+    scenarios: list[Literal["1", "2", "3"]] = ["2", "3"]
+
+
+@app.post("/api/demo/prepare")
+def demo_prepare(body: PrepareIn | None = None, _: Role = Depends(require_curator), __: None = Depends(require_demo)):
+    """Для показа: сброс демо и готовые подтверждённые планы у выбранных кейсов (по умолчанию 2 и 3)."""
+    scenarios = (body.scenarios if body else None) or ["2", "3"]
+    db.reset_demo()
+    with db.tx() as conn:
+        ids = {r["scenario"]: r["id"] for r in conn.execute("SELECT id, scenario FROM cases WHERE scenario IS NOT NULL")}
+    prepared = []
+    for key in scenarios:
+        cid = ids[key]
+        interview_autofill(cid, None)
+        interview_confirm(cid, None)
+        plan_generate(cid, None, "curator")
+        view = plan_confirm(cid, "curator")
+        prepared.append({"case_id": cid, "scenario": key, "steps": [s["service_id"] for s in view["steps"]],
+                         "source": (view["plan_meta"] or {}).get("source")})
+    return {"ok": True, "prepared": prepared}
+
+
+@app.get("/api/cases/{case_id}/plan")
+def get_plan(case_id: int, role: Role = Depends(get_role)):
+    """Шаги плана (родитель видит их только после подтверждения куратором)."""
+    with db.tx() as conn:
+        today = db.get_today(conn)
+        v = case_view(conn, load_case(conn, case_id), role, today)
+    return {"case_id": case_id, "status": v["status"], "plan_visible": v["plan_visible"], "stage": v["stage"],
+            "plan_meta": v["plan_meta"], "steps": v["steps"]}
+
+
+@app.get("/api/cases/{case_id}/notifications")
+def get_case_notifications(case_id: int, role: Role = Depends(get_role)):
+    """Уведомления по кейсу: родителю — адресованные семье, куратору — адресованные куратору."""
+    with db.tx() as conn:
+        c = load_case(conn, case_id)
+        today = db.get_today(conn)
+        refresh_steps(conn, c, db.load_services(conn), today)
+        return {"items": notifications_for(conn, case_id, role)}
